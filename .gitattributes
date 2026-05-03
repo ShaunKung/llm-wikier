@@ -1,0 +1,12 @@
+# 自动检测文本文件，并强制 LF 作为内部存储格式
+* text=auto
+
+# 明确指定那些必须保持 LF 的文件类型
+*.sh      text eol=lf
+*.py      text eol=lf
+*.js      text eol=lf
+*.md      text eol=lf
+
+# Windows 批处理等需要用 CRLF 的文件
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
