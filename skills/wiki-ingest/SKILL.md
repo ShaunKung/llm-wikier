@@ -112,6 +112,13 @@ compatibility: opencode
 - 网页：`.html`
 - 代码：常见编程语言的源代码文件
 
+**办公文档格式**：
+- PDF：`.pdf`
+- Word：`.docx`, `.doc`
+- PowerPoint：`.pptx`, `.ppt`
+- Excel：`.xlsx`, `.xls`
+- OpenDocument：`.odt`, `.odp`, `.ods`
+
 **图片格式**：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 
 ## 输出格式

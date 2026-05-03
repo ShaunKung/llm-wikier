@@ -51,6 +51,10 @@ function Get-ImageExtensions {
     return @("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp")
 }
 
+function Get-OfficeExtensions {
+    return @("pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "odt", "odp", "ods")
+}
+
 function Test-TextFile {
     param([string]$File)
     
@@ -69,10 +73,19 @@ function Test-ImageFile {
     return $ImageExts -contains $Ext
 }
 
+function Test-OfficeFile {
+    param([string]$File)
+    
+    $Ext = [System.IO.Path]::GetExtension($File).TrimStart('.').ToLower()
+    $OfficeExts = Get-OfficeExtensions
+    
+    return $OfficeExts -contains $Ext
+}
+
 function Test-SupportedFile {
     param([string]$File)
     
-    return (Test-TextFile $File) -or (Test-ImageFile $File)
+    return (Test-TextFile $File) -or (Test-ImageFile $File) -or (Test-OfficeFile $File)
 }
 
 function Test-ExcludeDir {

@@ -41,7 +41,24 @@ wiki/
 - 网页：`.html`
 - 代码：常见编程语言的源代码文件
 
+**办公文档格式**：
+- PDF：`.pdf`
+- Word：`.docx`, `.doc`
+- PowerPoint：`.pptx`, `.ppt`
+- Excel：`.xlsx`, `.xls`
+- OpenDocument：`.odt`, `.odp`, `.ods` (可选)
+
 **图片格式**：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
+
+## 办公文档处理策略
+
+对于 PDF、Word、PowerPoint、Excel 等办公文档：
+1. LLM 直接读取文档内容（支持原生格式）
+2. 提取文本、表格、图片等信息
+3. 对于包含图片的文档，可单独查看图片获取额外上下文
+4. 处理结果记录在源文件摘要中
+
+注意：办公文档的处理结果可能与原文排版有差异，关键信息会保留。
 
 ## 排除目录
 

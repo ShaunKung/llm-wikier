@@ -49,6 +49,10 @@ get_image_extensions() {
     echo "png jpg jpeg gif webp svg bmp"
 }
 
+get_office_extensions() {
+    echo "pdf docx doc pptx ppt xlsx xls odt odp ods"
+}
+
 is_text_file() {
     local file="$1"
     local ext="${file##*.}"
@@ -79,9 +83,24 @@ is_image_file() {
     return 1
 }
 
+is_office_file() {
+    local file="$1"
+    local ext="${file##*.}"
+    ext=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
+    
+    local office_exts=$(get_office_extensions)
+    for office_ext in $office_exts; do
+        if [[ "$ext" == "$office_ext" ]]; then
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
 is_supported_file() {
     local file="$1"
-    is_text_file "$file" || is_image_file "$file"
+    is_text_file "$file" || is_image_file "$file" || is_office_file "$file"
 }
 
 should_exclude_dir() {
