@@ -39,6 +39,9 @@
 git clone https://github.com/your-repo/llm-wikier.git
 cd llm-wikier
 
+# 添加执行权限
+chmod +x install.sh
+
 # 安装到目标知识库
 ./install.sh /path/to/your/knowledge-base
 ```
@@ -179,4 +182,4 @@ cd llm-wikier
 
 ## 许可证
 
-MIT License
+GNU General Public License v3.0 (GPL-3.0)
