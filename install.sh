@@ -166,7 +166,7 @@ create_skills_directory() {
     
     mkdir -p "$skills_dir"
     
-    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune")
+    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture")
     
     for skill in "${skills[@]}"; do
         local src_dir="$SKILLS_SOURCE/$skill"

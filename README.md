@@ -18,6 +18,7 @@
 - **wiki-lint**：健康检查（矛盾、孤立页、缺失链接等）
 - **wiki-update**：重新处理指定的已处理源文件
 - **wiki-prune**：清理无效引用、删除孤立页面
+- **wiki-capture**：从对话中主动抓取新知识，检测冲突并邀请用户裁决
 
 ## 支持的文件格式
 
@@ -75,7 +76,8 @@ cd llm-wikier
 │   ├── wiki-query/SKILL.md
 │   ├── wiki-lint/SKILL.md
 │   ├── wiki-update/SKILL.md
-│   └── wiki-prune/SKILL.md
+│   ├── wiki-prune/SKILL.md
+│   └── wiki-capture/SKILL.md
 └── [原有的 raw sources]         # 保持不变
 ```
 
@@ -134,6 +136,10 @@ cd llm-wikier
 ```
 /wiki-prune
 ```
+
+### 7. 自动知识抓取
+
+Agent 会在所有对话中自动感知你提供的新知识——新事实、纠正、观点或决定——并主动提议沉淀到 wiki。如有冲突会请你裁决，无需手动调用。
 
 ## 配置
 

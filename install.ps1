@@ -131,7 +131,7 @@ function New-SkillsDirectory {
     $SkillsDir = Join-Path $TargetDir ".opencode\skills"
     New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
     
-    $Skills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune")
+    $Skills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture")
     
     foreach ($Skill in $Skills) {
         $SrcDir = Join-Path $SkillsSource $Skill

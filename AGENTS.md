@@ -17,13 +17,14 @@
 ## 核心架构
 
 ```
-skills/                     ← 6 个 OpenCode skill 定义（安装到 .opencode/skills/）
+skills/                     ← 7 个 OpenCode skill 定义（安装到 .opencode/skills/）
   wiki-init/SKILL.md        ← 批量初始化 wiki
   wiki-ingest/SKILL.md      ← 增量入库（自动检测新文件）
   wiki-query/SKILL.md       ← 基于 wiki 问答
   wiki-lint/SKILL.md        ← 健康检查
   wiki-update/SKILL.md      ← 重新处理已处理源文件
   wiki-prune/SKILL.md       ← 清理无效内容
+  wiki-capture/SKILL.md     ← 对话知识抓取（自动感知 + 冲突裁决）
 templates/AGENTS.md.tmpl    ← 安装到目标知识库的 schema 模板
 lib/common.sh               ← Mac/Linux 安装脚本的共享函数
 lib/common.ps1              ← Windows 安装脚本的共享函数
@@ -93,6 +94,6 @@ install.sh/ps1 内置一份硬编码的默认 AGENTS.md（当 `templates/AGENTS.
 ## 常见陷阱
 
 - **不要混淆 AGENTS.md**：仓库根目录的 AGENTS.md 是关于本工具包仓库的，`templates/AGENTS.md.tmpl` 是安装到目标知识库的模板
-- **不要混淆 6 个 skill**：wiki-ingest 是增量检测新文件，wiki-update 是重新处理已有文件，wiki-init 是一次性批量处理
+- **不要混淆 7 个 skill**：wiki-ingest 是增量检测新文件，wiki-update 是重新处理已有文件，wiki-init 是一次性批量处理，wiki-capture 是从对话中抓取知识（不涉及文件）
 - **`.wiki-processed` 不是本仓库的文件**：它只存在于安装后的目标知识库中
 - **SKILL.md 中的 license: MIT 与仓库 License 不同是故意的**：skills 会被复制到用户的知识库目录
