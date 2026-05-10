@@ -38,7 +38,7 @@ show_help() {
     echo ""
     echo "选项:"
     echo "  -h, --help          显示此帮助信息"
-    echo "  -f, --force         强制覆盖已存在的文件"
+    echo "  -f, --force         强制覆盖（更新安装时自动确认所有步骤）"
     echo ""
     echo "示例:"
     echo "  $0 ~/my-knowledge-base"
@@ -88,6 +88,115 @@ validate_target_dir() {
     print_info "目标知识库路径: $TARGET_DIR"
 }
 
+# === Update detection ===
+is_update_install() {
+    local target="$1"
+
+    [[ ! -f "$target/AGENTS.md" ]] && return 1
+
+    local key_skills=("wiki-ingest" "wiki-lint" "wiki-query")
+    for skill in "${key_skills[@]}"; do
+        [[ ! -f "$target/.opencode/skills/$skill/SKILL.md" ]] && return 1
+    done
+
+    return 0
+}
+
+# === Prompt user ===
+prompt_user() {
+    local message="$1"
+
+    if [[ "$FORCE" == "true" ]]; then
+        return 0
+    fi
+
+    echo -e "${YELLOW}[询问]${NC} $message [Y/n] "
+    read -r response
+
+    case "$response" in
+        [nN]|[nN][oO]) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# === Section extraction ===
+extract_section_from_to() {
+    local file="$1"
+    local from_marker="$2"
+    local to_marker="$3"
+
+    local from_line
+    from_line=$(grep -n "^${from_marker}$" "$file" | head -1 | cut -d: -f1) || true
+    local to_line
+    to_line=$(grep -n "^${to_marker}$" "$file" | head -1 | cut -d: -f1) || true
+
+    [[ -z "$from_line" ]] && return 1
+    [[ -z "$to_line" || "$to_line" -le "$from_line" ]] && return 1
+
+    sed -n "${from_line},$((to_line - 1))p" "$file"
+    return 0
+}
+
+extract_section_to_end() {
+    local file="$1"
+    local from_marker="$2"
+
+    local from_line
+    from_line=$(grep -n "^${from_marker}$" "$file" | head -1 | cut -d: -f1) || true
+    [[ -z "$from_line" ]] && return 1
+
+    sed -n "${from_line}"',$p' "$file"
+    return 0
+}
+
+# === AGENTS.md merge ===
+merge_agents_file() {
+    local old_file="$1"
+    local new_template="$2"
+    local output_file="$3"
+
+    local tmp_user
+    tmp_user=$(mktemp) || true
+    local tmp_custom
+    tmp_custom=$(mktemp) || true
+
+    local has_user=1
+    local has_custom=1
+
+    extract_section_from_to "$old_file" "## 用户偏好" "## 自定义配置" > "$tmp_user" && has_user=0
+    extract_section_to_end "$old_file" "## 自定义配置" > "$tmp_custom" && has_custom=0
+
+    if [[ $has_user -ne 0 || $has_custom -ne 0 ]]; then
+        rm -f "$tmp_user" "$tmp_custom"
+        if prompt_user "现有 AGENTS.md 缺少标准章节，是否直接按新模板覆盖？"; then
+            cp "$new_template" "$output_file"
+            print_info "已按新模板覆盖 AGENTS.md"
+        else
+            print_info "保留现有 AGENTS.md 不变"
+        fi
+        return
+    fi
+
+    local new_user_line
+    new_user_line=$(grep -n "^## 用户偏好$" "$new_template" | head -1 | cut -d: -f1) || true
+    local new_custom_line
+    new_custom_line=$(grep -n "^## 自定义配置$" "$new_template" | head -1 | cut -d: -f1) || true
+
+    if [[ -z "$new_user_line" || -z "$new_custom_line" ]]; then
+        rm -f "$tmp_user" "$tmp_custom"
+        print_warning "新模板缺少标准章节，保留现有 AGENTS.md"
+        cp "$old_file" "$output_file"
+        return
+    fi
+
+    sed -n "1,$((new_user_line - 1))p" "$new_template" > "$output_file"
+    cat "$tmp_user" >> "$output_file"
+    cat "$tmp_custom" >> "$output_file"
+
+    rm -f "$tmp_user" "$tmp_custom"
+    print_success "已合并更新 AGENTS.md"
+}
+
 check_existing_installation() {
     local wiki_dir="$TARGET_DIR/wiki"
     local agents_file="$TARGET_DIR/AGENTS.md"
@@ -97,7 +206,7 @@ check_existing_installation() {
         if [[ "$FORCE" == "true" ]]; then
             print_warning "检测到已有安装，将强制覆盖"
         else
-            print_error "检测到已有安装，使用 --force 强制覆盖"
+            print_error "检测到已有文件，若为更新安装请使用 --force，或移除已有文件后重试"
             exit 1
         fi
     fi
@@ -196,6 +305,8 @@ create_agents_file() {
 
 此文件定义知识库的结构、约定和工作流程。
 
+> ⚠️ **重要提示**：本文档除「用户偏好」和「自定义配置」章节外，其余章节均由工具包在更新安装时从模板自动刷新。请勿在其他章节添加个人内容，否则更新安装时将被覆盖。您的自定义内容请仅存放在「用户偏好」和「自定义配置」章节中。
+
 ## 知识库概述
 
 这是一个由 LLM Wikier 管理的个人知识库。
@@ -246,9 +357,127 @@ wiki/
 - 提问时尽量具体
 - 定期运行 `/wiki-lint` 检查 wiki 健康状态
 - 重要的查询答案可以作为新页面沉淀
+
+## 用户偏好
+
+<!-- 用户可以在此添加个人偏好 -->
+
+## 自定义配置
+
+<!-- 用户可以在此添加自定义配置 -->
 EOF
         print_success "创建默认 AGENTS.md: $agents_file"
     fi
+}
+
+# === Update functions ===
+update_skills() {
+    local target="$1"
+    local skills_dir="$target/.opencode/skills"
+
+    mkdir -p "$skills_dir"
+
+    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture")
+    local updated=0
+
+    for skill in "${skills[@]}"; do
+        local src="$SKILLS_SOURCE/$skill"
+        local dst="$skills_dir/$skill"
+
+        if [[ -d "$src" ]]; then
+            mkdir -p "$dst"
+            if [[ -f "$src/SKILL.md" ]]; then
+                cp "$src/SKILL.md" "$dst/SKILL.md"
+                print_success "更新 skill: $skill"
+                ((updated++))
+            fi
+        else
+            print_warning "找不到 skill 源文件: $skill"
+        fi
+    done
+
+    if [[ $updated -gt 0 ]]; then
+        print_info "共更新 $updated 个 skill"
+    fi
+}
+
+update_agents_file() {
+    local target="$1"
+    local agents_file="$target/AGENTS.md"
+    local template_file="$TEMPLATES_SOURCE/AGENTS.md.tmpl"
+
+    if [[ -f "$template_file" ]]; then
+        merge_agents_file "$agents_file" "$template_file" "$agents_file"
+    else
+        print_warning "找不到 AGENTS.md 模板，使用内置默认内容"
+        local default_template
+        default_template=$(mktemp) || true
+        cat > "$default_template" << 'EOF'
+# AGENTS.md - LLM Wikier 配置文件
+
+此文件定义知识库的结构、约定和工作流程。
+
+> ⚠️ **重要提示**：本文档除「用户偏好」和「自定义配置」章节外，其余章节均由工具包在更新安装时从模板自动刷新。请勿在其他章节添加个人内容，否则更新安装时将被覆盖。您的自定义内容请仅存放在「用户偏好」和「自定义配置」章节中。
+
+## 知识库概述
+
+这是一个由 LLM Wikier 管理的个人知识库。
+
+## Wiki 结构
+
+```
+wiki/
+├── index.md          # 内容索引
+├── log.md            # 操作日志
+├── entities/         # 实体页面
+├── concepts/         # 概念页面
+├── sources/          # 源文件摘要
+└── analysis/         # 分析与综合页面
+```
+
+## 排除目录
+
+以下目录不会被处理：
+- `wiki/`
+- `.opencode/`
+- `.git/`
+
+## 用户偏好
+
+<!-- 用户可以在此添加个人偏好 -->
+
+## 自定义配置
+
+<!-- 用户可以在此添加自定义配置 -->
+EOF
+        merge_agents_file "$agents_file" "$default_template" "$agents_file"
+        rm -f "$default_template"
+    fi
+}
+
+update_install() {
+    local target="$1"
+
+    echo ""
+    print_info "更新安装将执行以下操作："
+    print_info "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
+    print_info "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
+    echo ""
+
+    if prompt_user "Step (1/2): 是否更新 skills？（将覆盖现有 skill 文件）"; then
+        update_skills "$target"
+    else
+        print_info "已跳过更新 skills"
+    fi
+
+    if prompt_user "Step (2/2): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）"; then
+        update_agents_file "$target"
+    else
+        print_info "已跳过更新 AGENTS.md"
+    fi
+
+    echo ""
+    print_success "更新安装完成！"
 }
 
 print_completion_message() {
@@ -277,18 +506,24 @@ print_completion_message() {
 main() {
     parse_args "$@"
     validate_target_dir
-    check_existing_installation
-    
-    print_info "开始安装 LLM Wikier..."
-    
-    create_wiki_directory
-    create_index_file
-    create_log_file
-    create_processed_file
-    create_skills_directory
-    create_agents_file
-    
-    print_completion_message
+
+    if is_update_install "$TARGET_DIR"; then
+        print_info "检测到已有安装（AGENTS.md + 关键 skills），进入更新安装模式"
+        update_install "$TARGET_DIR"
+    else
+        check_existing_installation
+
+        print_info "开始安装 LLM Wikier..."
+
+        create_wiki_directory
+        create_index_file
+        create_log_file
+        create_processed_file
+        create_skills_directory
+        create_agents_file
+
+        print_completion_message
+    fi
 }
 
 main "$@"
