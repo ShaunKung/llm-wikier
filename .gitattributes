@@ -10,3 +10,4 @@
 # Windows 批处理等需要用 CRLF 的文件
 *.bat     text eol=crlf
 *.cmd     text eol=crlf
+*.ps1     text eol=crlf
