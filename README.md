@@ -70,14 +70,17 @@ cd llm-wikier
 │   ├── index.md                 # Wiki 内容目录
 │   ├── log.md                   # 操作日志
 │   └── [其他 wiki 页面]
-├── .opencode/skills/            # Skills 目录
-│   ├── wiki-init/SKILL.md
-│   ├── wiki-ingest/SKILL.md
-│   ├── wiki-query/SKILL.md
-│   ├── wiki-lint/SKILL.md
-│   ├── wiki-update/SKILL.md
-│   ├── wiki-prune/SKILL.md
-│   └── wiki-capture/SKILL.md
+├── .opencode/
+│   ├── skills/                  # Skills 目录
+│   │   ├── wiki-init/SKILL.md
+│   │   ├── wiki-ingest/SKILL.md
+│   │   ├── wiki-query/SKILL.md
+│   │   ├── wiki-lint/SKILL.md
+│   │   ├── wiki-update/SKILL.md
+│   │   ├── wiki-prune/SKILL.md
+│   │   └── wiki-capture/SKILL.md
+│   └── agents/                  # Subagent 配置（可选）
+│       └── vision-reader.md     # 视觉读取 subagent
 └── [原有的 raw sources]         # 保持不变
 ```
 
@@ -141,6 +144,37 @@ cd llm-wikier
 
 Agent 会在所有对话中自动感知你提供的新知识——新事实、纠正、观点或决定——并主动提议沉淀到 wiki。如有冲突会请你裁决，无需手动调用。
 
+## 视觉内容读取（可选）
+
+如果你的主 agent 是纯文本模型，可以配置 `vision-reader` subagent 来读取：
+
+- 纯图片文件（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`）
+- 办公文档中的视觉元素（PPTX 幻灯片、PDF 图表、DOCX 图片等）
+- HTML/Markdown 中的嵌入图片
+
+### 配置
+
+```bash
+# Mac/Linux
+./config_vision_reader.sh /path/to/your/knowledge-base
+
+# Windows (PowerShell)
+.\config_vision_reader.ps1 "C:\path\to\your\knowledge-base"
+```
+
+配置完成后，使用知识库时 Agent 会在遇到视觉内容时自动调用 `vision-reader` 读取。
+
+### 工作原理
+
+| 文件类型 | 处理方式 |
+|---------|---------|
+| 纯图片 | 委托 `vision-reader` 读取 |
+| 办公文档（PPTX/PDF/DOCX） | 两段式：Read 取文本 + vision-reader 取视觉 |
+| 网页（HTML） | 两段式：Read 取文本 + vision-reader 取视觉 |
+| Markdown | 文本优先，按需读取图片 |
+
+如未配置 `vision-reader`，Agent 跳过视觉处理，仅处理文本内容。
+
 ## 配置
 
 编辑 `AGENTS.md` 可以自定义：
@@ -169,11 +203,11 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
 }
 ```
 
-### 图片处理
+### 视觉内容读取
 
-对于包含图片的 markdown 文件：
-1. 先读取文本内容进行处理
-2. 在需要时单独查看图片获取额外上下文
+对于需要视觉能力的文件类型（图片、办公文档、网页），LLM Wikier 支持通过 `vision-reader` subagent 处理视觉内容。纯图片文件委托 subagent 读取描述，办公文档和网页采用两段式处理（Read 取文本 + vision-reader 取视觉元素）。
+
+如未配置，Agent 跳过视觉处理，仅处理文本内容。
 
 ### 知识累积
 

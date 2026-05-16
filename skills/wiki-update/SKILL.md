@@ -23,6 +23,18 @@ compatibility: opencode
 5. **更新 wiki**：根据新内容更新相关页面
 6. **更新记录**：更新 `.wiki-processed` 和 `log.md`
 
+## 视觉内容处理策略
+
+`wiki-update` 在处理已变更的源文件时，对于包含视觉内容的文件类型，遵循与 `wiki-ingest` 相同的视觉处理策略：
+
+- 纯图片文件：委托 `vision-reader` subagent 读取
+- 办公文档/网页：两段式处理（Read 取文本 + vision-reader 取视觉）
+- Markdown 文件：文本优先，按需读取图片
+
+如果 `.opencode/agents/vision-reader.md` 未配置，则跳过视觉读取，仅处理文本内容。
+
+详细流程参见 `wiki-ingest` skill 的「视觉内容处理策略」章节。
+
 ## 使用方法
 
 ### 更新单个文件

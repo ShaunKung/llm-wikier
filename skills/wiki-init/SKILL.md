@@ -35,13 +35,45 @@ compatibility: opencode
 
 **图片格式**：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 
+## 视觉内容处理策略
+
+主 agent 可能是纯文本模型，不具备图像/视觉能力。当处理以下需要视觉能力的文件时，应借助 `vision-reader` subagent。
+
+### 触发条件
+
+以下文件类型需要视觉能力处理：
+- 纯图片文件：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
+- 办公文档的视觉元素：`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`
+- 网页和 Markdown 中的嵌入图片
+
+如果 `.opencode/agents/vision-reader.md` 未配置，则跳过视觉读取，仅处理文本内容。
+
+### 两段式处理流程（办公文档 & 网页）
+
+1. 先用 **Read 工具**直接读取文件，获取全部文本内容
+2. 再用 **Task 工具**调用 `vision-reader` subagent 读取同一文件，获取视觉元素描述
+   - `vision-reader` 的 system prompt 已明确指令只描述视觉元素、不重复文本
+   - 兜底规则：如文档文本提取明显不完整，subagent 会补充关键文本信息
+3. 合并两段结果进行知识提取
+
+### 完整委托（纯图片）
+
+- 纯图片文件直接用 Task 工具调用 `vision-reader` subagent 读取，获得图片文字描述
+- 基于描述进行后续知识提取
+
+### Markdown 文件
+
+- 先用 Read 工具读取 Markdown 文本内容
+- 仅当图片引用对理解内容关键时，按需调用 `vision-reader` 单独读取图片
+
 ## 处理每个文件的步骤
 
 对于每个 raw source 文件：
 
 1. **读取内容**
    - 文本文件：直接读取全文
-   - 图片文件：使用视觉能力分析
+   - 办公文档/网页：两段式处理（Read 取文本 + vision-reader 取视觉）
+   - 纯图片文件：委托 vision-reader subagent 读取描述
 
 2. **提取关键信息**
    - 识别主要实体（人物、组织、概念、事件等）

@@ -338,6 +338,24 @@ wiki/
 
 图片格式：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 
+## 视觉内容处理策略
+
+主 agent 可能是纯文本模型。如已配置 `vision-reader` subagent，Agent 会在遇到视觉内容时自动调用。
+
+### 处理流程
+
+**纯图片文件**（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`）：
+- 使用 Task 工具调用 `vision-reader` subagent 读取
+
+**办公文档 & 网页**（`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`, `.html`）：
+- 两段式：Read 取文本 + vision-reader 取视觉元素
+
+**Markdown**：文本优先，按需读取图片
+
+如未配置 `vision-reader`（`.opencode/agents/vision-reader.md` 不存在），Agent 跳过视觉处理。
+
+配置方式：`./config_vision_reader.sh <知识库路径>`
+
 ## 排除目录
 
 以下目录不会被处理：
@@ -478,6 +496,8 @@ update_install() {
 
     echo ""
     print_success "更新安装完成！"
+
+    configure_vision_reader "$target"
 }
 
 print_completion_message() {
@@ -503,6 +523,32 @@ print_completion_message() {
     echo "详细文档请参考 README.md"
 }
 
+configure_vision_reader() {
+    local target="$1"
+
+    if [[ "$FORCE" == "true" ]]; then
+        print_info "强制安装模式，跳过 vision-reader 交互配置"
+        print_info "稍后可手动运行: ./config_vision_reader.sh \"$target\""
+        return 0
+    fi
+
+    echo ""
+    if ! prompt_user "是否配置 vision-reader subagent？（用于读取图片/幻灯片/PDF 等视觉内容）"; then
+        print_info "已跳过 vision-reader 配置"
+        return 0
+    fi
+
+    local config_script="$SCRIPT_DIR/config_vision_reader.sh"
+    if [[ ! -f "$config_script" ]]; then
+        print_error "找不到配置脚本: $config_script"
+        return 1
+    fi
+
+    echo ""
+    print_info "正在配置 vision-reader..."
+    bash "$config_script" "$target" -f
+}
+
 main() {
     parse_args "$@"
     validate_target_dir
@@ -523,6 +569,8 @@ main() {
         create_agents_file
 
         print_completion_message
+
+        configure_vision_reader "$TARGET_DIR"
     fi
 }
 

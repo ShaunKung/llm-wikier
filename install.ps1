@@ -294,6 +294,24 @@ wiki/
 
 图片格式：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 
+## 视觉内容处理策略
+
+主 agent 可能是纯文本模型。如已配置 `vision-reader` subagent，Agent 会在遇到视觉内容时自动调用。
+
+### 处理流程
+
+**纯图片文件**（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`）：
+- 使用 Task 工具调用 `vision-reader` subagent 读取
+
+**办公文档 & 网页**（`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`, `.html`）：
+- 两段式：Read 取文本 + vision-reader 取视觉元素
+
+**Markdown**：文本优先，按需读取图片
+
+如未配置 `vision-reader`（`.opencode/agents/vision-reader.md` 不存在），Agent 跳过视觉处理。
+
+配置方式：`.\config_vision_reader.ps1 <知识库路径>`
+
 ## 排除目录
 
 以下目录不会被处理：
@@ -437,6 +455,8 @@ function Update-Install {
 
     Write-Host ""
     Write-Success-Message "更新安装完成！"
+
+    Invoke-VisionReaderConfig -TargetDir $TargetDir
 }
 
 function Write-CompletionMessage {
@@ -460,6 +480,32 @@ function Write-CompletionMessage {
     Write-Host "   /wiki-ingest"
     Write-Host ""
     Write-Host "详细文档请参考 README.md"
+}
+
+function Invoke-VisionReaderConfig {
+    param([string]$TargetDir)
+
+    if ($Force) {
+        Write-Info-Message "强制安装模式，跳过 vision-reader 交互配置"
+        Write-Info-Message "稍后可手动运行: .\config_vision_reader.ps1 `"$TargetDir`""
+        return
+    }
+
+    Write-Host ""
+    if (-not (Invoke-PromptUser "是否配置 vision-reader subagent？（用于读取图片/幻灯片/PDF 等视觉内容）")) {
+        Write-Info-Message "已跳过 vision-reader 配置"
+        return
+    }
+
+    $ConfigScript = Join-Path $ScriptDir "config_vision_reader.ps1"
+    if (-not (Test-Path $ConfigScript)) {
+        Write-Error-Message "找不到配置脚本: $ConfigScript"
+        return
+    }
+
+    Write-Host ""
+    Write-Info-Message "正在配置 vision-reader..."
+    & $ConfigScript -TargetDir $TargetDir -Force
 }
 
 if ($Help) {
@@ -491,4 +537,6 @@ if (Test-UpdateInstall -TargetDir $TargetDir) {
     New-AgentsFile
 
     Write-CompletionMessage
+
+    Invoke-VisionReaderConfig -TargetDir $TargetDir
 }

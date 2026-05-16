@@ -30,6 +30,8 @@ lib/common.sh               ← Mac/Linux 安装脚本的共享函数
 lib/common.ps1              ← Windows 安装脚本的共享函数
 install.sh                  ← Mac/Linux 安装器
 install.ps1                 ← Windows PowerShell 安装器
+config_vision_reader.sh     ← Mac/Linux vision-reader subagent 配置器
+config_vision_reader.ps1    ← Windows vision-reader subagent 配置器
 ```
 
 ## SKILL.md 格式
@@ -58,7 +60,20 @@ compatibility: opencode
 5. 从 `templates/AGENTS.md.tmpl` 生成目标 `AGENTS.md`
 6. 输出完成提示
 
-**安装后的目标目录不包含本仓库的 `lib/`、`README.md`、`templates/`、`install.*`、`skills/` 源文件。**
+**安装后的目标目录不包含本仓库的 `lib/`、`README.md`、`templates/`、`install.*`、`config_vision_reader.*`、`skills/` 源文件。**
+
+## vision-reader subagent 配置脚本（config_vision_reader.sh/ps1）
+
+独立于 install.sh/ps1 的配置脚本，用于在目标 KB 的 `.opencode/agents/` 下生成 `vision-reader.md`。
+
+两版脚本行为必须一致：
+1. 验证目标 KB 有效（`is_valid_kb_dir`）
+2. 检测已有配置 → 存在则进入更新模式
+3. 通过 `opencode models` 交互式选择 provider 和 model
+4. 如 opencode 不可用或无法解析，fallback 到手动输入模式
+5. 强制校验 provider + model 均非空，否则不保存
+6. 生成 `.opencode/agents/vision-reader.md`（YAML frontmatter + 视觉读取 system prompt）
+7. 输出完成提示（含 .gitignore 建议）
 
 ## 安装脚本内部生成的 AGENTS.md 默认内容
 
@@ -88,6 +103,7 @@ install.sh/ps1 内置一份硬编码的默认 AGENTS.md（当 `templates/AGENTS.
 无需运行 lint、typecheck、test 命令。
 修改后只需验证：
 - `bash -n install.sh`（检查 shell 语法）
+- `bash -n config_vision_reader.sh`（检查 shell 语法）
 - PowerShell 语法可通过人工审查
 - SKILL.md frontmatter 格式正确（name/description 必填）
 
@@ -95,5 +111,7 @@ install.sh/ps1 内置一份硬编码的默认 AGENTS.md（当 `templates/AGENTS.
 
 - **不要混淆 AGENTS.md**：仓库根目录的 AGENTS.md 是关于本工具包仓库的，`templates/AGENTS.md.tmpl` 是安装到目标知识库的模板
 - **不要混淆 7 个 skill**：wiki-ingest 是增量检测新文件，wiki-update 是重新处理已有文件，wiki-init 是一次性批量处理，wiki-capture 是从对话中抓取知识（不涉及文件）
+- **不要混淆 skill 和 subagent**：`skills/` 下的 SKILL.md 是给主 agent 加载的工作流指令；`vision-reader` 是 `.opencode/agents/` 下的 subagent，由主 agent 通过 Task 工具调用，用于读取视觉内容
 - **`.wiki-processed` 不是本仓库的文件**：它只存在于安装后的目标知识库中
 - **SKILL.md 中的 license: MIT 与仓库 License 不同是故意的**：skills 会被复制到用户的知识库目录
+- **vision-reader subagent 不是强制的**：如用户未配置，Agent 跳过视觉处理，仅处理文本内容
