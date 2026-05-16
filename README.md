@@ -41,7 +41,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-repo/llm-wikier.git
+git clone https://github.com/ShaunKung/llm-wikier.git
 cd llm-wikier
 
 # 添加执行权限
@@ -55,7 +55,7 @@ chmod +x install.sh
 
 ```powershell
 # 克隆仓库
-git clone https://github.com/your-repo/llm-wikier.git
+git clone https://github.com/ShaunKung/llm-wikier.git
 cd llm-wikier
 
 # 安装到目标知识库
