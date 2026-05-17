@@ -83,12 +83,25 @@
 
 配置方式：使用 LLM Wikier 提供的 `config_vision_reader` 脚本，或在 `.opencode/agents/` 下手动创建 `vision-reader.md`。
 
-## 排除目录
+## 文件排除规则
 
-以下目录不会被处理：
-- `.wiki/`（wiki 内容本身）
-- `.opencode/`（skills 配置）
-- `.git/`（版本控制）
+知识库根目录的 `.wiki_ignore` 文件定义了被排除的文件和目录。
+格式类似 `.gitignore`：每行一个模式，`#` 开头的行为注释。
+
+### 默认排除项
+- `.opencode/` — skills 配置目录
+- `.wiki/` — wiki 内容本身
+- `.git/` — 版本控制
+- `AGENTS.md` — 知识库配置文件
+- `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
+
+### 用户自定义
+用户可在 `.wiki_ignore` 的「用户自定义规则」区域添加自己的排除项，
+例如添加 `*.pptx` 排除所有 PowerPoint 文件，或添加 `temp/` 排除临时目录。
+
+### 对技能的影响
+所有扫描 raw sources 的技能（wiki-init、wiki-ingest、wiki-update）在扫描文件前
+必须读取 `.wiki_ignore` 并按其中规则排除匹配的文件和目录。
 
 ## 主动知识抓取
 

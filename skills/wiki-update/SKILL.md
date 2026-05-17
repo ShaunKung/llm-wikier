@@ -192,7 +192,7 @@ compatibility: opencode
 ```
 /wiki-update --all-changed
 
-扫描已处理文件: 45 个
+扫描已处理文件（遵循 .wiki_ignore 排除规则）: 45 个
 发现变更文件: 3 个
 
 ✓ 已更新: articles/article1.md

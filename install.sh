@@ -271,6 +271,35 @@ create_processed_file() {
     print_success "创建处理记录文件: $processed_file"
 }
 
+create_wiki_ignore_file() {
+    local ignore_file="$TARGET_DIR/.wiki_ignore"
+    
+    cat > "$ignore_file" << 'EOF'
+# LLM Wikier — 默认排除规则（由工具包管理，请勿修改此区域）
+.opencode/
+.wiki/
+.git/
+AGENTS.md
+output/
+
+# ——— 用户自定义规则（添加在此区域下方） ———
+EOF
+    
+    print_success "创建 .wiki_ignore: $ignore_file"
+}
+
+create_output_directory() {
+    local output_dir="$TARGET_DIR/output"
+    
+    if [[ -d "$output_dir" ]]; then
+        print_info "output/ 目录已存在，跳过创建"
+        return 0
+    fi
+    
+    mkdir -p "$output_dir"
+    print_success "创建 output/ 目录: $output_dir"
+}
+
 create_skills_directory() {
     local skills_dir="$TARGET_DIR/.opencode/skills"
     
@@ -357,12 +386,24 @@ create_agents_file() {
 
 配置方式：`./config_vision_reader.sh <知识库路径>`
 
-## 排除目录
+## 文件排除规则
 
-以下目录不会被处理：
-- `.wiki/`
-- `.opencode/`
-- `.git/`
+知识库根目录的 `.wiki_ignore` 文件定义了被排除的文件和目录。
+格式类似 `.gitignore`：每行一个模式，`#` 开头的行为注释。
+
+### 默认排除项
+- `.opencode/` — skills 配置目录
+- `.wiki/` — wiki 内容本身
+- `.git/` — 版本控制
+- `AGENTS.md` — 知识库配置文件
+- `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
+
+### 用户自定义
+用户可在 `.wiki_ignore` 的「用户自定义规则」区域添加自己的排除项。
+
+### 对技能的影响
+所有扫描 raw sources 的技能（wiki-init、wiki-ingest、wiki-update）在扫描文件前
+必须读取 `.wiki_ignore` 并按其中规则排除匹配的文件和目录。
 
 ## 工作流程
 
@@ -419,6 +460,27 @@ migrate_old_structure() {
 }
 
 # === Update functions ===
+merge_wiki_ignore() {
+    local target="$1"
+    local ignore_file="$target/.wiki_ignore"
+    
+    if [[ ! -f "$ignore_file" ]]; then
+        create_wiki_ignore_file
+        return
+    fi
+    
+    local user_custom
+    user_custom=$(sed -n '/^# ——— 用户自定义规则/,//p' "$ignore_file" 2>/dev/null | sed '1d') || true
+    
+    create_wiki_ignore_file
+    
+    if [[ -n "$user_custom" ]]; then
+        echo "" >> "$ignore_file"
+        echo "$user_custom" >> "$ignore_file"
+        print_success "已合并更新 .wiki_ignore（保留用户自定义规则）"
+    fi
+}
+
 update_skills() {
     local target="$1"
     local skills_dir="$target/.opencode/skills"
@@ -483,12 +545,20 @@ update_agents_file() {
 └── analysis/         # 分析与综合页面
 ```
 
-## 排除目录
+## 文件排除规则
 
-以下目录不会被处理：
-- `.wiki/`
-- `.opencode/`
-- `.git/`
+知识库根目录的 `.wiki_ignore` 文件定义了被排除的文件和目录。
+格式类似 `.gitignore`：每行一个模式，`#` 开头的行为注释。
+
+### 默认排除项
+- `.opencode/` — skills 配置目录
+- `.wiki/` — wiki 内容本身
+- `.git/` — 版本控制
+- `AGENTS.md` — 知识库配置文件
+- `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
+
+### 对技能的影响
+所有扫描 raw sources 的技能在扫描文件前必须读取 `.wiki_ignore` 并按规则排除。
 
 ## 用户偏好
 
@@ -514,18 +584,25 @@ update_install() {
     print_info "更新安装将执行以下操作："
     print_info "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     print_info "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
+    print_info "  (3) 更新 .wiki_ignore — 从模板更新，保留用户自定义规则"
     echo ""
 
-    if prompt_user "Step (1/2): 是否更新 skills？（将覆盖现有 skill 文件）"; then
+    if prompt_user "Step (1/3): 是否更新 skills？（将覆盖现有 skill 文件）"; then
         update_skills "$target"
     else
         print_info "已跳过更新 skills"
     fi
 
-    if prompt_user "Step (2/2): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）"; then
+    if prompt_user "Step (2/3): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）"; then
         update_agents_file "$target"
     else
         print_info "已跳过更新 AGENTS.md"
+    fi
+
+    if prompt_user "Step (3/3): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）"; then
+        merge_wiki_ignore "$target"
+    else
+        print_info "已跳过更新 .wiki_ignore"
     fi
 
     echo ""
@@ -599,6 +676,8 @@ main() {
         create_index_file
         create_log_file
         create_processed_file
+        create_wiki_ignore_file
+        create_output_directory
         create_skills_directory
         create_agents_file
 

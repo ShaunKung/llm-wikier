@@ -13,7 +13,7 @@ compatibility: opencode
 
 1. **读取配置**：从 `AGENTS.md` 获取知识库配置和约定
 2. **扫描文件**：遍历知识库目录，找出所有支持的文件格式
-3. **过滤排除**：排除 `.wiki/`、`.opencode/`、`.git/` 目录
+3. **过滤排除**：读取 `AGENTS.md` 中的「文件排除规则」章节，在扫描时读取 `.wiki_ignore` 文件并按规则排除匹配的文件和目录
 4. **检查状态**：读取 `.wiki/.wiki-processed` 确认哪些文件尚未处理
 5. **逐个处理**：对每个文件执行 ingest 流程
 6. **更新记录**：将处理结果写入 `.wiki/.wiki-processed` 和 `log.md`

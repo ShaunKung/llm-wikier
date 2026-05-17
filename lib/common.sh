@@ -108,6 +108,7 @@ is_supported_file() {
     is_text_file "$file" || is_image_file "$file" || is_office_file "$file"
 }
 
+# DEPRECATED: 将在未来版本移除，请改用 .wiki_ignore 机制
 should_exclude_dir() {
     local dir="$1"
     
@@ -118,6 +119,60 @@ should_exclude_dir() {
             return 0
             ;;
     esac
+    
+    return 1
+}
+
+read_wiki_ignore() {
+    local kb_dir="$1"
+    local ignore_file="$kb_dir/.wiki_ignore"
+    
+    if [[ ! -f "$ignore_file" ]]; then
+        return
+    fi
+    
+    while IFS= read -r line; do
+        line="${line##[[:space:]]}"
+        line="${line%%[[:space:]]}"
+        if [[ -z "$line" || "$line" == \#* ]]; then
+            continue
+        fi
+        echo "$line"
+    done < "$ignore_file"
+}
+
+is_path_ignored() {
+    local rel_path="$1"
+    local pattern="$2"
+    
+    local filename="${rel_path##*/}"
+    local clean_pattern="${pattern%/}"
+    
+    # Pattern: *.ext (extension match)
+    if [[ "$clean_pattern" == \*.* ]]; then
+        local ext="${clean_pattern#\*}"
+        case "$filename" in
+            *"$ext") return 0 ;;
+        esac
+        return 1
+    fi
+    
+    # Pattern contains "/" — path prefix matching
+    if [[ "$clean_pattern" == */* ]]; then
+        case "$rel_path" in
+            "$clean_pattern"/*) return 0 ;;
+            "$clean_pattern")   return 0 ;;
+        esac
+        return 1
+    fi
+    
+    # Pattern without "/" — component matching
+    IFS='/' read -ra parts <<< "$rel_path"
+    for part in "${parts[@]}"; do
+        if [[ "$part" == "$clean_pattern" ]]; then
+            return 0
+        fi
+    done
     
     return 1
 }
@@ -139,14 +194,14 @@ find_raw_sources() {
         fi
     done
     
+    mapfile -t ignore_patterns < <(read_wiki_ignore "$kb_dir")
+    
     eval "$find_cmd \\( $name_args \\)" | while read -r file; do
         local rel_path="${file#$kb_dir/}"
-        local dir_path=$(dirname "$rel_path")
         
         local skip=false
-        IFS='/' read -ra parts <<< "$dir_path"
-        for part in "${parts[@]}"; do
-            if should_exclude_dir "$part"; then
+        for pattern in "${ignore_patterns[@]}"; do
+            if is_path_ignored "$rel_path" "$pattern"; then
                 skip=true
                 break
             fi

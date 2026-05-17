@@ -93,6 +93,7 @@ function Test-SupportedFile {
     return (Test-TextFile $File) -or (Test-ImageFile $File) -or (Test-OfficeFile $File)
 }
 
+# DEPRECATED: 将在未来版本移除，请改用 .wiki_ignore 机制
 function Test-ExcludeDir {
     param([string]$Dir)
     
@@ -103,10 +104,67 @@ function Test-ExcludeDir {
     return $ExcludeDirs -contains $DirName
 }
 
+function Read-WikiIgnore {
+    param([string]$KbDir)
+    
+    $IgnoreFile = Join-Path $KbDir ".wiki_ignore"
+    
+    if (-not (Test-Path $IgnoreFile)) {
+        return @()
+    }
+    
+    $Patterns = @()
+    $Lines = Get-Content $IgnoreFile -ErrorAction SilentlyContinue
+    
+    foreach ($Line in $Lines) {
+        $Trimmed = $Line.Trim()
+        if ([string]::IsNullOrEmpty($Trimmed) -or $Trimmed.StartsWith('#')) {
+            continue
+        }
+        $Patterns += $Trimmed
+    }
+    
+    return $Patterns
+}
+
+function Test-PathIgnored {
+    param(
+        [string]$RelPath,
+        [string]$Pattern
+    )
+    
+    $Filename = Split-Path $RelPath -Leaf
+    $CleanPattern = $Pattern.TrimEnd('\', '/')
+    
+    # Pattern: *.ext (extension match)
+    if ($CleanPattern.StartsWith('*.')) {
+        $Ext = $CleanPattern.Substring(1)
+        return $Filename.EndsWith($Ext, [StringComparison]::OrdinalIgnoreCase)
+    }
+    
+    # Pattern contains path separator — path prefix matching
+    if ($CleanPattern.Contains('/') -or $CleanPattern.Contains('\')) {
+        $NormalizedRel = $RelPath.Replace('\', '/')
+        $NormalizedPattern = $CleanPattern.Replace('\', '/')
+        return ($NormalizedRel -eq $NormalizedPattern) -or $NormalizedRel.StartsWith("$NormalizedPattern/")
+    }
+    
+    # Pattern without separator — component matching
+    $Parts = $RelPath -split '[\\/]'
+    foreach ($Part in $Parts) {
+        if ($Part -eq $CleanPattern) {
+            return $true
+        }
+    }
+    
+    return $false
+}
+
 function Find-RawSources {
     param([string]$KbDir)
     
     $AllExts = Get-TextExtensions + Get-ImageExtensions
+    $IgnorePatterns = Read-WikiIgnore $KbDir
     $Sources = @()
     
     foreach ($Ext in $AllExts) {
@@ -114,13 +172,10 @@ function Find-RawSources {
         
         foreach ($File in $Files) {
             $RelPath = $File.FullName.Substring($KbDir.Length).TrimStart('\', '/')
-            $DirPath = Split-Path $RelPath -Parent
             
             $Skip = $false
-            $Parts = $DirPath -split '[\\/]'
-            
-            foreach ($Part in $Parts) {
-                if (Test-ExcludeDir $Part) {
+            foreach ($Pattern in $IgnorePatterns) {
+                if (Test-PathIgnored -RelPath $RelPath -Pattern $Pattern) {
                     $Skip = $true
                     break
                 }

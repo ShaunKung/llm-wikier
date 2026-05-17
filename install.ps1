@@ -225,6 +225,69 @@ function New-ProcessedFile {
     Write-Success-Message "创建处理记录文件: $ProcessedFile"
 }
 
+function New-WikiIgnoreFile {
+    $IgnoreFile = Join-Path $TargetDir ".wiki_ignore"
+    
+    $Content = @'
+# LLM Wikier — 默认排除规则（由工具包管理，请勿修改此区域）
+.opencode/
+.wiki/
+.git/
+AGENTS.md
+output/
+
+# ——— 用户自定义规则（添加在此区域下方） ———
+'@
+    
+    Set-Content -Path $IgnoreFile -Value $Content -Encoding UTF8
+    Write-Success-Message "创建 .wiki_ignore: $IgnoreFile"
+}
+
+function New-OutputDirectory {
+    $OutputDir = Join-Path $TargetDir "output"
+    
+    if (Test-Path $OutputDir) {
+        Write-Info-Message "output/ 目录已存在，跳过创建"
+        return
+    }
+    
+    New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+    Write-Success-Message "创建 output/ 目录: $OutputDir"
+}
+
+function Merge-WikiIgnore {
+    param([string]$TargetDir)
+    
+    $IgnoreFile = Join-Path $TargetDir ".wiki_ignore"
+    
+    if (-not (Test-Path $IgnoreFile)) {
+        New-WikiIgnoreFile
+        return
+    }
+    
+    $Content = Get-Content $IgnoreFile -Raw -ErrorAction SilentlyContinue
+    
+    $MarkerIndex = $Content.IndexOf("# ——— 用户自定义规则")
+    if ($MarkerIndex -ge 0) {
+        $AfterMarker = $Content.Substring($MarkerIndex)
+        $NewlineAfterMarker = $AfterMarker.IndexOf("`n")
+        if ($NewlineAfterMarker -ge 0) {
+            $UserCustom = $AfterMarker.Substring($NewlineAfterMarker + 1)
+        } else {
+            $UserCustom = ""
+        }
+    } else {
+        $UserCustom = ""
+    }
+    
+    New-WikiIgnoreFile
+    
+    if (-not [string]::IsNullOrWhiteSpace($UserCustom)) {
+        Add-Content -Path $IgnoreFile -Value "`n$UserCustom" -Encoding UTF8
+        Write-Success-Message "已合并更新 .wiki_ignore（保留用户自定义规则）"
+    }
+}
+
 function New-SkillsDirectory {
     $SkillsDir = Join-Path $TargetDir ".opencode\skills"
     New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
@@ -313,12 +376,24 @@ function New-AgentsFile {
 
 配置方式：`.\config_vision_reader.ps1 <知识库路径>`
 
-## 排除目录
+## 文件排除规则
 
-以下目录不会被处理：
-- `.wiki/`
-- `.opencode/`
-- `.git/`
+知识库根目录的 `.wiki_ignore` 文件定义了被排除的文件和目录。
+格式类似 `.gitignore`：每行一个模式，`#` 开头的行为注释。
+
+### 默认排除项
+- `.opencode/` — skills 配置目录
+- `.wiki/` — wiki 内容本身
+- `.git/` — 版本控制
+- `AGENTS.md` — 知识库配置文件
+- `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
+
+### 用户自定义
+用户可在 `.wiki_ignore` 的「用户自定义规则」区域添加自己的排除项。
+
+### 对技能的影响
+所有扫描 raw sources 的技能（wiki-init、wiki-ingest、wiki-update）在扫描文件前
+必须读取 `.wiki_ignore` 并按其中规则排除匹配的文件和目录。
 
 ## 工作流程
 
@@ -341,7 +416,7 @@ function New-AgentsFile {
 
 <!-- 用户可以在此添加自定义配置 -->
 '@
-        
+         
         Set-Content -Path $AgentsFile -Value $Content -Encoding UTF8
         Write-Success-Message "创建默认 AGENTS.md: $AgentsFile"
     }
@@ -461,12 +536,20 @@ function Update-AgentsFile {
 └── analysis/         # 分析与综合页面
 ```
 
-## 排除目录
+## 文件排除规则
 
-以下目录不会被处理：
-- `.wiki/`
-- `.opencode/`
-- `.git/`
+知识库根目录的 `.wiki_ignore` 文件定义了被排除的文件和目录。
+格式类似 `.gitignore`：每行一个模式，`#` 开头的行为注释。
+
+### 默认排除项
+- `.opencode/` — skills 配置目录
+- `.wiki/` — wiki 内容本身
+- `.git/` — 版本控制
+- `AGENTS.md` — 知识库配置文件
+- `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
+
+### 对技能的影响
+所有扫描 raw sources 的技能在扫描文件前必须读取 `.wiki_ignore` 并按规则排除。
 
 ## 用户偏好
 
@@ -494,18 +577,25 @@ function Update-Install {
     Write-Info-Message "更新安装将执行以下操作："
     Write-Info-Message "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     Write-Info-Message "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
+    Write-Info-Message "  (3) 更新 .wiki_ignore — 从模板更新，保留用户自定义规则"
     Write-Host ""
 
-    if (Invoke-PromptUser "Step (1/2): 是否更新 skills？（将覆盖现有 skill 文件）") {
+    if (Invoke-PromptUser "Step (1/3): 是否更新 skills？（将覆盖现有 skill 文件）") {
         Update-Skills -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过更新 skills"
     }
 
-    if (Invoke-PromptUser "Step (2/2): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）") {
+    if (Invoke-PromptUser "Step (2/3): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）") {
         Update-AgentsFile -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过更新 AGENTS.md"
+    }
+
+    if (Invoke-PromptUser "Step (3/3): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）") {
+        Merge-WikiIgnore -TargetDir $TargetDir
+    } else {
+        Write-Info-Message "已跳过更新 .wiki_ignore"
     }
 
     Write-Host ""
@@ -589,6 +679,8 @@ if (Test-UpdateInstall -TargetDir $TargetDir) {
     New-IndexFile
     New-LogFile
     New-ProcessedFile
+    New-WikiIgnoreFile
+    New-OutputDirectory
     New-SkillsDirectory
     New-AgentsFile
 
