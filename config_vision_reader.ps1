@@ -87,15 +87,16 @@ function Test-TargetDir {
 
     if (Get-Command Test-ValidKbDir -ErrorAction SilentlyContinue) {
         if (-not (Test-ValidKbDir $TargetDir)) {
-            Write-Error-Message "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 wiki/ 目录）"
+            Write-Error-Message "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
             Write-Info-Message "请先运行 install.ps1 安装 LLM Wikier"
             exit 1
         }
     } else {
         $AgentsFile = Join-Path $TargetDir "AGENTS.md"
-        $WikiDir = Join-Path $TargetDir "wiki"
-        if (-not (Test-Path $AgentsFile) -or -not (Test-Path $WikiDir)) {
-            Write-Error-Message "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 wiki/ 目录）"
+        $WikiDir = Join-Path $TargetDir ".wiki"
+        $OldWikiDir = Join-Path $TargetDir "wiki"
+        if (-not (Test-Path $AgentsFile) -or (-not (Test-Path $WikiDir) -and -not (Test-Path $OldWikiDir))) {
+            Write-Error-Message "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
             Write-Info-Message "请先运行 install.ps1 安装 LLM Wikier"
             exit 1
         }

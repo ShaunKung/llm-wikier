@@ -198,11 +198,12 @@ merge_agents_file() {
 }
 
 check_existing_installation() {
-    local wiki_dir="$TARGET_DIR/wiki"
+    local wiki_dir="$TARGET_DIR/.wiki"
+    local old_wiki_dir="$TARGET_DIR/wiki"
     local agents_file="$TARGET_DIR/AGENTS.md"
     local skills_dir="$TARGET_DIR/.opencode/skills"
     
-    if [[ -d "$wiki_dir" || -f "$agents_file" || -d "$skills_dir" ]]; then
+    if [[ -d "$wiki_dir" || -d "$old_wiki_dir" || -f "$agents_file" || -d "$skills_dir" ]]; then
         if [[ "$FORCE" == "true" ]]; then
             print_warning "检测到已有安装，将强制覆盖"
         else
@@ -213,14 +214,14 @@ check_existing_installation() {
 }
 
 create_wiki_directory() {
-    local wiki_dir="$TARGET_DIR/wiki"
+    local wiki_dir="$TARGET_DIR/.wiki"
     
     mkdir -p "$wiki_dir"
     print_success "创建 wiki 目录: $wiki_dir"
 }
 
 create_index_file() {
-    local index_file="$TARGET_DIR/wiki/index.md"
+    local index_file="$TARGET_DIR/.wiki/index.md"
     
     cat > "$index_file" << 'EOF'
 # Wiki 索引
@@ -249,7 +250,7 @@ EOF
 }
 
 create_log_file() {
-    local log_file="$TARGET_DIR/wiki/log.md"
+    local log_file="$TARGET_DIR/.wiki/log.md"
     
     cat > "$log_file" << 'EOF'
 # Wiki 操作日志
@@ -264,7 +265,7 @@ EOF
 }
 
 create_processed_file() {
-    local processed_file="$TARGET_DIR/.wiki-processed"
+    local processed_file="$TARGET_DIR/.wiki/.wiki-processed"
     
     echo '{"version": 1, "entries": []}' > "$processed_file"
     print_success "创建处理记录文件: $processed_file"
@@ -314,7 +315,7 @@ create_agents_file() {
 ## Wiki 结构
 
 ```
-wiki/
+.wiki/
 ├── index.md          # 内容索引
 ├── log.md            # 操作日志
 ├── entities/         # 实体页面
@@ -359,7 +360,7 @@ wiki/
 ## 排除目录
 
 以下目录不会被处理：
-- `wiki/`
+- `.wiki/`
 - `.opencode/`
 - `.git/`
 
@@ -386,6 +387,35 @@ wiki/
 EOF
         print_success "创建默认 AGENTS.md: $agents_file"
     fi
+}
+
+# === Migration functions ===
+migrate_old_structure() {
+    local target="$1"
+
+    if [[ ! -d "$target/wiki" || -d "$target/.wiki" ]]; then
+        return 0
+    fi
+
+    print_info "检测到旧版 wiki/ 目录，正在自动迁移至 .wiki/..."
+
+    # Step a: Move wiki/ → .wiki/
+    mv "$target/wiki" "$target/.wiki"
+    print_success "已迁移 wiki/ → .wiki/"
+
+    # Step b: Move .wiki-processed into .wiki/
+    if [[ -f "$target/.wiki-processed" ]]; then
+        mv "$target/.wiki-processed" "$target/.wiki/.wiki-processed"
+        print_success "已迁移 .wiki-processed → .wiki/.wiki-processed"
+    fi
+
+    # Step c: Replace wiki/ → .wiki/ in all migrated wiki pages
+    if [[ "$(uname)" == "Darwin" ]]; then
+        find "$target/.wiki" -name "*.md" -type f -exec sed -i '' 's|wiki/|.wiki/|g' {} +
+    else
+        find "$target/.wiki" -name "*.md" -type f -exec sed -i 's|wiki/|.wiki/|g' {} +
+    fi
+    print_success "已修复 .wiki/ 内所有交叉引用链接"
 }
 
 # === Update functions ===
@@ -444,7 +474,7 @@ update_agents_file() {
 ## Wiki 结构
 
 ```
-wiki/
+.wiki/
 ├── index.md          # 内容索引
 ├── log.md            # 操作日志
 ├── entities/         # 实体页面
@@ -456,7 +486,7 @@ wiki/
 ## 排除目录
 
 以下目录不会被处理：
-- `wiki/`
+- `.wiki/`
 - `.opencode/`
 - `.git/`
 
@@ -475,6 +505,10 @@ EOF
 
 update_install() {
     local target="$1"
+
+    echo ""
+
+    migrate_old_structure "$target"
 
     echo ""
     print_info "更新安装将执行以下操作："

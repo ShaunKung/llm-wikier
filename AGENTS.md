@@ -54,8 +54,8 @@ compatibility: opencode
 
 两版脚本行为必须一致：
 1. 验证目标目录存在
-2. 创建 `wiki/`、`wiki/index.md`、`wiki/log.md`
-3. 创建 `.wiki-processed`（JSON：`{"version":1,"entries":[]}`）
+2. 创建 `.wiki/`、`.wiki/index.md`、`.wiki/log.md`
+3. 创建 `.wiki/.wiki-processed`（JSON：`{"version":1,"entries":[]}`）
 4. 复制 `skills/*` → 目标目录 `.opencode/skills/`
 5. 从 `templates/AGENTS.md.tmpl` 生成目标 `AGENTS.md`
 6. 输出完成提示
@@ -112,6 +112,6 @@ install.sh/ps1 内置一份硬编码的默认 AGENTS.md（当 `templates/AGENTS.
 - **不要混淆 AGENTS.md**：仓库根目录的 AGENTS.md 是关于本工具包仓库的，`templates/AGENTS.md.tmpl` 是安装到目标知识库的模板
 - **不要混淆 7 个 skill**：wiki-ingest 是增量检测新文件，wiki-update 是重新处理已有文件，wiki-init 是一次性批量处理，wiki-capture 是从对话中抓取知识（不涉及文件）
 - **不要混淆 skill 和 subagent**：`skills/` 下的 SKILL.md 是给主 agent 加载的工作流指令；`vision-reader` 是 `.opencode/agents/` 下的 subagent，由主 agent 通过 Task 工具调用，用于读取视觉内容
-- **`.wiki-processed` 不是本仓库的文件**：它只存在于安装后的目标知识库中
+- **`.wiki/.wiki-processed` 不是本仓库的文件**：它只存在于安装后的目标知识库中
 - **SKILL.md 中的 license: MIT 与仓库 License 不同是故意的**：skills 会被复制到用户的知识库目录
 - **vision-reader subagent 不是强制的**：如用户未配置，Agent 跳过视觉处理，仅处理文本内容

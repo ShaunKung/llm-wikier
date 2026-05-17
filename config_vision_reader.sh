@@ -103,7 +103,7 @@ validate_target_dir() {
     print_info "目标知识库路径: $TARGET_DIR"
 
     if ! is_valid_kb_dir "$TARGET_DIR"; then
-        print_error "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 wiki/ 目录）"
+        print_error "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
         print_info "请先运行 install.sh 安装 LLM Wikier"
         exit 1
     fi

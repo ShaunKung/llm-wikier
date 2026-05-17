@@ -11,13 +11,13 @@
 ## 三层架构
 
 1. **Raw Sources**：知识库中的原始文件，不可变
-2. **Wiki**：LLM 生成的 markdown 文件集合，存放在 `wiki/` 目录
+2. **Wiki**：LLM 生成的 markdown 文件集合，存放在 `.wiki/` 目录
 3. **Schema**：本配置文件，定义结构、约定和工作流程
 
 ## Wiki 目录结构
 
 ```
-wiki/
+.wiki/
 ├── index.md          # 内容索引（按类别组织）
 ├── log.md            # 操作日志（时间顺序）
 ├── entities/         # 实体页面（人物、组织、项目等）
@@ -86,7 +86,7 @@ wiki/
 ## 排除目录
 
 以下目录不会被处理：
-- `wiki/`（wiki 内容本身）
+- `.wiki/`（wiki 内容本身）
 - `.opencode/`（skills 配置）
 - `.git/`（版本控制）
 
@@ -131,15 +131,15 @@ Agent 应在所有对话中主动感知用户提供的新知识，无需等待�
 3. 创建或更新相关 wiki 页面
 4. 建立页面间链接
 5. 更新 `index.md` 和 `log.md`
-6. 在 `.wiki-processed` 记录处理状态
+6. 在 `.wiki/.wiki-processed` 记录处理状态
 
 ### 2. Query（查询）
 
 基于 wiki 回答问题时：
-1. 先阅读 `wiki/index.md` 找到相关页面
+1. 先阅读 `.wiki/index.md` 找到相关页面
 2. 阅读相关页面内容
 3. 综合信息回答问题
-4. **重要答案可沉淀为新页面** 存入 `wiki/analysis/`
+4. **重要答案可沉淀为新页面** 存入 `.wiki/analysis/`
 
 ### 3. Lint（健康检查）
 
@@ -172,7 +172,7 @@ Agent 应在所有对话中主动感知用户提供的新知识，无需等待�
 
 ## 文件追踪机制
 
-`.wiki-processed` JSON 格式：
+`.wiki/.wiki-processed` JSON 格式：
 
 ```json
 {
@@ -193,7 +193,7 @@ Agent 应在所有对话中主动感知用户提供的新知识，无需等待�
 
 ## 日志格式
 
-`wiki/log.md` 条目格式：
+`.wiki/log.md` 条目格式：
 
 ```markdown
 ## [YYYY-MM-DD HH:MM] 操作类型 | 对象
@@ -211,7 +211,7 @@ Agent 应在所有对话中主动感知用户提供的新知识，无需等待�
 
 ## 索引格式
 
-`wiki/index.md` 按类别组织：
+`.wiki/index.md` 按类别组织：
 
 ```markdown
 # Wiki 索引

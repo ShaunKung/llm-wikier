@@ -67,11 +67,14 @@ cd llm-wikier
 ```
 <知识库根目录>/
 ├── AGENTS.md                    # Schema 配置文件
-├── .wiki-processed              # 已处理文件记录
-├── wiki/
+├── .wiki/
 │   ├── index.md                 # Wiki 内容目录
 │   ├── log.md                   # 操作日志
-│   └── [其他 wiki 页面]
+│   ├── .wiki-processed          # 已处理文件记录
+│   ├── entities/                # 实体页面
+│   ├── concepts/                # 概念页面
+│   ├── sources/                 # 源文件摘要
+│   └── analysis/                # 分析与综合页面
 ├── .opencode/
 │   ├── skills/                  # Skills 目录
 │   │   ├── wiki-init/SKILL.md
@@ -198,7 +201,7 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
 
 ### 文件追踪
 
-`.wiki-processed` 文件记录所有已处理的源文件及其哈希值：
+`.wiki/.wiki-processed` 文件记录所有已处理的源文件及其哈希值：
 
 ```json
 {

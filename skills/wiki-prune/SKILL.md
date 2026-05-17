@@ -17,7 +17,7 @@ compatibility: opencode
 
 ## 执行流程
 
-1. **扫描 wiki 目录**：收集所有页面
+1. **扫描 `.wiki/` 目录**：收集所有页面
 2. **构建链接图谱**：建立页面间关系
 3. **识别可清理项**：按类别列出
 4. **生成清理报告**：供用户确认
@@ -262,8 +262,8 @@ for page in all_pages:
 
 执行清理时，会：
 
-1. **备份**：将删除的内容备份到 `wiki/.prune-backup/`
-2. **日志**：记录所有删除操作到 `wiki/log.md`
+1. **备份**：将删除的内容备份到 `.wiki/.prune-backup/`
+2. **日志**：记录所有删除操作到 `.wiki/log.md`
 3. **确认**：逐项确认重大变更
 
 ```
@@ -290,7 +290,7 @@ for page in all_pages:
 - 合并: 1 个页面
 - 删除: 1 个空章节
 
-备份位于: wiki/.prune-backup/YYYY-MM-DD-HHMM/
+备份位于: .wiki/.prune-backup/YYYY-MM-DD-HHMM/
 ```
 
 ## 回滚机制
@@ -301,7 +301,7 @@ for page in all_pages:
 /wiki-prune --rollback
 ```
 
-或手动从 `wiki/.prune-backup/` 目录恢复文件。
+或手动从 `.wiki/.prune-backup/` 目录恢复文件。
 
 ## 与其他命令的关系
 
@@ -327,7 +327,7 @@ for page in all_pages:
 
 ### 备份
 - 保留备份数量: 5
-- 备份目录: wiki/.prune-backup/
+- 备份目录: .wiki/.prune-backup/
 
 ### 临时文件模式
 - temp-*

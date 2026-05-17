@@ -12,7 +12,7 @@ compatibility: opencode
 ## 执行流程
 
 1. **分析问题**：理解用户问题的核心主题和关键词
-2. **查找相关页面**：从 `wiki/index.md` 定位相关页面
+2. **查找相关页面**：从 `.wiki/index.md` 定位相关页面
 3. **阅读页面内容**：读取相关实体、概念、源文件摘要
 4. **追踪链接**：如需要，沿链接阅读更多相关页面
 5. **综合回答**：基于阅读内容回答问题
@@ -48,7 +48,7 @@ compatibility: opencode
 
 ### 1. 信息检索
 
-- 先阅读 `wiki/index.md` 找到相关分类
+- 先阅读 `.wiki/index.md` 找到相关分类
 - 根据问题关键词匹配实体、概念页面
 - 阅读源文件摘要获取详细引用
 
@@ -95,10 +95,10 @@ compatibility: opencode
 
 ### 沉淀流程
 
-1. 将回答保存为 `wiki/analysis/主题.md`
+1. 将回答保存为 `.wiki/analysis/主题.md`
 2. 在页面中标注生成时间和触发问题
-3. 更新 `wiki/index.md` 的分析页面列表
-4. 在 `wiki/log.md` 记录操作
+3. 更新 `.wiki/index.md` 的分析页面列表
+4. 在 `.wiki/log.md` 记录操作
 
 ### 沉淀页面格式
 

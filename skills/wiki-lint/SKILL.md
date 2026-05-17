@@ -114,7 +114,7 @@ compatibility: opencode
 **检查方法**：
 - 检查源文件是否有更新
 - 识别长时间未更新的页面
-- 对比 `.wiki-processed` 哈希值
+- 对比 `.wiki/.wiki-processed` 哈希值
 
 **示例报告**：
 
@@ -136,8 +136,8 @@ compatibility: opencode
 **问题**：页面存在但未在索引中列出
 
 **检查方法**：
-- 扫描 wiki 目录下所有 .md 文件
-- 对比 `wiki/index.md` 的内容
+- 扫描 `.wiki/` 目录下所有 .md 文件
+- 对比 `.wiki/index.md` 的内容
 - 报告差异
 
 **示例报告**：
@@ -257,7 +257,7 @@ Wiki 健康评分: 85/100
 - 缺失页面: 2 个
 - 过时信息: 2 个
 
-详细报告已写入: wiki/lint-report-YYYY-MM-DD.md
+详细报告已写入: .wiki/lint-report-YYYY-MM-DD.md
 
 建议下一步操作:
 1. /wiki-update articles/article.md

@@ -13,10 +13,10 @@ compatibility: opencode
 
 1. **读取配置**：从 `AGENTS.md` 获取知识库配置和约定
 2. **扫描文件**：遍历知识库目录，找出所有支持的文件格式
-3. **过滤排除**：排除 `wiki/`、`.opencode/`、`.git/` 目录
-4. **检查状态**：读取 `.wiki-processed` 确认哪些文件尚未处理
+3. **过滤排除**：排除 `.wiki/`、`.opencode/`、`.git/` 目录
+4. **检查状态**：读取 `.wiki/.wiki-processed` 确认哪些文件尚未处理
 5. **逐个处理**：对每个文件执行 ingest 流程
-6. **更新记录**：将处理结果写入 `.wiki-processed` 和 `log.md`
+6. **更新记录**：将处理结果写入 `.wiki/.wiki-processed` 和 `log.md`
 
 ## 支持的文件格式
 
@@ -82,20 +82,20 @@ compatibility: opencode
    - 标注文件来源和时间
 
 3. **创建/更新 wiki 页面**
-   - 为每个实体创建页面（如不存在）：`wiki/entities/实体名称.md`
-   - 创建源文件摘要页面：`wiki/sources/文件名-summary.md`
-   - 更新相关的概念页面：`wiki/concepts/概念名称.md`
+   - 为每个实体创建页面（如不存在）：`.wiki/entities/实体名称.md`
+   - 创建源文件摘要页面：`.wiki/sources/文件名-summary.md`
+   - 更新相关的概念页面：`.wiki/concepts/概念名称.md`
    - 在各页面间建立双向链接
 
 4. **更新索引**
-   - 更新 `wiki/index.md` 的页面列表
+   - 更新 `.wiki/index.md` 的页面列表
    - 添加新页面的一行摘要
 
 5. **记录日志**
-   - 在 `wiki/log.md` 添加处理记录
+   - 在 `.wiki/log.md` 添加处理记录
 
 6. **更新处理状态**
-   - 在 `.wiki-processed` 添加文件记录
+   - 在 `.wiki/.wiki-processed` 添加文件记录
 
 ## 页面结构规范
 

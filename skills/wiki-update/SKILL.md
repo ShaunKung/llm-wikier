@@ -16,12 +16,12 @@ compatibility: opencode
 
 ## 执行流程
 
-1. **验证文件状态**：检查文件是否已在 `.wiki-processed` 中
+1. **验证文件状态**：检查文件是否已在 `.wiki/.wiki-processed` 中
 2. **比较哈希**：判断文件内容是否真正发生变化
 3. **备份旧信息**：记录将被替换的内容
 4. **重新处理**：执行完整的 ingest 流程
 5. **更新 wiki**：根据新内容更新相关页面
-6. **更新记录**：更新 `.wiki-processed` 和 `log.md`
+6. **更新记录**：更新 `.wiki/.wiki-processed` 和 `log.md`
 
 ## 视觉内容处理策略
 
@@ -55,7 +55,7 @@ compatibility: opencode
 /wiki-update --all-changed
 ```
 
-比对 `.wiki-processed` 记录的哈希值，找出所有内容有变化的文件。
+比对 `.wiki/.wiki-processed` 记录的哈希值，找出所有内容有变化的文件。
 
 ### 强制更新（即使内容未变）
 
@@ -142,7 +142,7 @@ compatibility: opencode
 
 ### 7. 更新记录
 
-更新 `.wiki-processed`：
+更新 `.wiki/.wiki-processed`：
 
 ```json
 {
@@ -152,7 +152,7 @@ compatibility: opencode
 }
 ```
 
-更新 `wiki/log.md`：
+更新 `.wiki/log.md`：
 
 ```markdown
 ## [2026-05-03 15:00] update | articles/article.md
@@ -235,7 +235,7 @@ compatibility: opencode
 
 选项:
 1. 保留页面，标注为"需核实"
-2. 移动到 wiki/_deprecated/ 目录
+2. 移动到 .wiki/_deprecated/ 目录
 3. 删除页面（不推荐）
 
 请选择 [1/2/3]:

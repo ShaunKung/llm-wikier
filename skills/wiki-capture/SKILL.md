@@ -36,7 +36,7 @@ Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获�
 
 ### Phase 2: 比对
 
-1. 搜索 `wiki/entities/`、`wiki/concepts/`、`wiki/analysis/` 中可能相关的页面
+1. 搜索 `.wiki/entities/`、`.wiki/concepts/`、`.wiki/analysis/` 中可能相关的页面
 2. 阅读匹配度最高的页面内容
 3. 判断新知识与已有内容的关系：
    - **全新知识**：wiki 中不存在的实体/概念/事实
@@ -59,7 +59,7 @@ Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获�
 是否将其沉淀到 wiki？
 ```
 
-用户确认后，创建/更新相应 wiki 页面，记录到 `wiki/log.md`。
+用户确认后，创建/更新相应 wiki 页面，记录到 `.wiki/log.md`。
 
 #### 补充知识
 
@@ -104,7 +104,7 @@ Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获�
 
 **用户选 B**：
 - 不修改 wiki
-- 在 `wiki/log.md` 记录此次冲突及处理结果
+- 在 `.wiki/log.md` 记录此次冲突及处理结果
 
 **用户选 C**：
 - 在相关页面添加 `## 不同来源记载` 章节：
@@ -121,12 +121,12 @@ Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获�
 
 | 知识类型 | 目标位置 | 示例 |
 |---------|---------|------|
-| 新实体的事实 | `wiki/entities/实体名.md`（新建） | 新建 entities/新公司.md |
-| 已有实体的补充 | `wiki/entities/实体名.md`（追加） | 向 entities/X.md 追加信息 |
-| 新概念 | `wiki/concepts/概念名.md`（新建） | 新建 concepts/新理论.md |
-| 已有概念的补充 | `wiki/concepts/概念名.md`（追加） | 向 concepts/Y.md 追加信息 |
-| 分析/洞察 | `wiki/analysis/主题.md`（新建） | 新建 analysis/A与B的关联.md |
-| 用户决定/偏好 | `wiki/analysis/决策记录.md`（新建或追加） | 新建 analysis/技术选型决策.md |
+| 新实体的事实 | `.wiki/entities/实体名.md`（新建） | 新建 entities/新公司.md |
+| 已有实体的补充 | `.wiki/entities/实体名.md`（追加） | 向 entities/X.md 追加信息 |
+| 新概念 | `.wiki/concepts/概念名.md`（新建） | 新建 concepts/新理论.md |
+| 已有概念的补充 | `.wiki/concepts/概念名.md`（追加） | 向 concepts/Y.md 追加信息 |
+| 分析/洞察 | `.wiki/analysis/主题.md`（新建） | 新建 analysis/A与B的关联.md |
+| 用户决定/偏好 | `.wiki/analysis/决策记录.md`（新建或追加） | 新建 analysis/技术选型决策.md |
 | 纠正（替换旧值） | 原页面（修改） + 争议历史 | 修改 entities/X.md |
 
 ## 写入规范
@@ -163,7 +163,7 @@ Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获�
 
 ### 日志记录
 
-在 `wiki/log.md` 中追加：
+在 `.wiki/log.md` 中追加：
 
 ```markdown
 ## [YYYY-MM-DD HH:MM] capture | 主题
@@ -185,7 +185,7 @@ Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获�
 
 ## 索引更新
 
-1. 如果是全新页面，更新 `wiki/index.md` 添加条目
+1. 如果是全新页面，更新 `.wiki/index.md` 添加条目
 2. 如果是已有页面的补充，无需更新索引
 
 ## 行为准则

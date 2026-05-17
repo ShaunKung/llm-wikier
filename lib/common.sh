@@ -32,9 +32,14 @@ is_valid_kb_dir() {
     fi
     
     local agents_file="$dir/AGENTS.md"
-    local wiki_dir="$dir/wiki"
+    local wiki_dir="$dir/.wiki"
+    local old_wiki_dir="$dir/wiki"
     
-    if [[ ! -f "$agents_file" || ! -d "$wiki_dir" ]]; then
+    if [[ ! -f "$agents_file" ]]; then
+        return 1
+    fi
+    
+    if [[ ! -d "$wiki_dir" && ! -d "$old_wiki_dir" ]]; then
         return 1
     fi
     
@@ -109,7 +114,7 @@ should_exclude_dir() {
     local dir_name=$(basename "$dir")
     
     case "$dir_name" in
-        wiki|.opencode|.git|node_modules|.venv|__pycache__|.idea|.vscode)
+        wiki|.wiki|.opencode|.git|node_modules|.venv|__pycache__|.idea|.vscode)
             return 0
             ;;
     esac
@@ -175,7 +180,7 @@ get_current_date() {
 
 read_processed_file() {
     local kb_dir="$1"
-    local processed_file="$kb_dir/.wiki-processed"
+    local processed_file="$kb_dir/.wiki/.wiki-processed"
     
     if [[ ! -f "$processed_file" ]]; then
         echo '{"version": 1, "entries": []}'
@@ -213,7 +218,7 @@ add_to_processed() {
     local file_path="$2"
     local hash="$3"
     
-    local processed_file="$kb_dir/.wiki-processed"
+    local processed_file="$kb_dir/.wiki/.wiki-processed"
     local rel_path="${file_path#$kb_dir/}"
     local timestamp=$(get_current_timestamp)
     
@@ -239,7 +244,7 @@ append_to_log() {
     local target="$3"
     local details="$4"
     
-    local log_file="$kb_dir/wiki/log.md"
+    local log_file="$kb_dir/.wiki/log.md"
     local timestamp=$(date +"%Y-%m-%d %H:%M")
     
     {

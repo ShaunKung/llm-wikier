@@ -13,7 +13,7 @@ compatibility: opencode
 
 ### 自动检测模式（无参数）
 
-1. **读取处理记录**：从 `.wiki-processed` 获取已处理文件列表
+1. **读取处理记录**：从 `.wiki/.wiki-processed` 获取已处理文件列表
 2. **扫描文件**：遍历知识库目录
 3. **识别新文件**：对比找出未处理的文件
 4. **处理文件**：逐个执行 ingest 流程
@@ -66,16 +66,16 @@ compatibility: opencode
 
 4. **创建/更新 wiki 页面**
    
-   **实体页面** (`wiki/entities/`)：
+   **实体页面** (`.wiki/entities/`)：
    - 检查实体是否已存在页面
    - 不存在则创建，存在则追加信息
    - 在"引用来源"部分添加新链接
    - 更新"最后更新"时间
    
-   **概念页面** (`wiki/concepts/`)：
+   **概念页面** (`.wiki/concepts/`)：
    - 类似实体页面的处理流程
    
-   **源文件摘要** (`wiki/sources/`)：
+   **源文件摘要** (`.wiki/sources/`)：
    - 创建新的摘要页面
    - 列出所有提取的实体和概念
 
@@ -89,14 +89,14 @@ compatibility: opencode
    - 分别列出不同观点及其来源
 
 7. **更新索引**
-   - 在 `wiki/index.md` 添加新页面条目
+   - 在 `.wiki/index.md` 添加新页面条目
    - 按类别组织（实体、概念、源文件）
 
 8. **记录日志**
-   - 在 `wiki/log.md` 添加处理记录
+   - 在 `.wiki/log.md` 添加处理记录
 
 9. **更新处理状态**
-   - 在 `.wiki-processed` 添加条目：
+   - 在 `.wiki/.wiki-processed` 添加条目：
    ```json
    {
      "path": "relative/path/to/file.md",

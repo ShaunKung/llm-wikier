@@ -34,9 +34,14 @@ function Test-ValidKbDir {
     }
     
     $AgentsFile = Join-Path $Dir "AGENTS.md"
-    $WikiDir = Join-Path $Dir "wiki"
+    $WikiDir = Join-Path $Dir ".wiki"
+    $OldWikiDir = Join-Path $Dir "wiki"
     
-    if (-not (Test-Path $AgentsFile) -or -not (Test-Path $WikiDir)) {
+    if (-not (Test-Path $AgentsFile)) {
+        return $false
+    }
+    
+    if (-not (Test-Path $WikiDir) -and -not (Test-Path $OldWikiDir)) {
         return $false
     }
     
@@ -93,7 +98,7 @@ function Test-ExcludeDir {
     
     $DirName = Split-Path $Dir -Leaf
     
-    $ExcludeDirs = @("wiki", ".opencode", ".git", "node_modules", ".venv", "__pycache__", ".idea", ".vscode")
+    $ExcludeDirs = @("wiki", ".wiki", ".opencode", ".git", "node_modules", ".venv", "__pycache__", ".idea", ".vscode")
     
     return $ExcludeDirs -contains $DirName
 }
@@ -159,7 +164,7 @@ function Get-CurrentDate {
 function Read-ProcessedFile {
     param([string]$KbDir)
     
-    $ProcessedFile = Join-Path $KbDir ".wiki-processed"
+    $ProcessedFile = Join-Path $KbDir ".wiki\.wiki-processed"
     
     if (-not (Test-Path $ProcessedFile)) {
         return '{"version": 1, "entries": []}'
@@ -203,7 +208,7 @@ function Add-ToProcessed {
         [string]$Hash
     )
     
-    $ProcessedFile = Join-Path $KbDir ".wiki-processed"
+    $ProcessedFile = Join-Path $KbDir ".wiki\.wiki-processed"
     $RelPath = $FilePath.Substring($KbDir.Length).TrimStart('\', '/').Replace('\', '/')
     $Timestamp = Get-CurrentTimestamp
     
@@ -244,7 +249,7 @@ function Append-ToLog {
         [string]$Details
     )
     
-    $LogFile = Join-Path $KbDir "wiki\log.md"
+    $LogFile = Join-Path $KbDir ".wiki\log.md"
     $Timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm")
     
     $Content = @"

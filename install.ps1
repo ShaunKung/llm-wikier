@@ -151,11 +151,12 @@ function Merge-AgentsFile {
 }
 
 function Test-ExistingInstallation {
-    $WikiDir = Join-Path $TargetDir "wiki"
+    $WikiDir = Join-Path $TargetDir ".wiki"
+    $OldWikiDir = Join-Path $TargetDir "wiki"
     $AgentsFile = Join-Path $TargetDir "AGENTS.md"
     $SkillsDir = Join-Path $TargetDir ".opencode\skills"
     
-    if ((Test-Path $WikiDir) -or (Test-Path $AgentsFile) -or (Test-Path $SkillsDir)) {
+    if ((Test-Path $WikiDir) -or (Test-Path $OldWikiDir) -or (Test-Path $AgentsFile) -or (Test-Path $SkillsDir)) {
         if ($Force) {
             Write-Warning-Message "检测到已有安装，将强制覆盖"
         } else {
@@ -166,13 +167,13 @@ function Test-ExistingInstallation {
 }
 
 function New-WikiDirectory {
-    $WikiDir = Join-Path $TargetDir "wiki"
+    $WikiDir = Join-Path $TargetDir ".wiki"
     New-Item -ItemType Directory -Path $WikiDir -Force | Out-Null
     Write-Success-Message "创建 wiki 目录: $WikiDir"
 }
 
 function New-IndexFile {
-    $IndexFile = Join-Path $TargetDir "wiki\index.md"
+    $IndexFile = Join-Path $TargetDir ".wiki\index.md"
     
     $Content = @'
 # Wiki 索引
@@ -202,7 +203,7 @@ function New-IndexFile {
 }
 
 function New-LogFile {
-    $LogFile = Join-Path $TargetDir "wiki\log.md"
+    $LogFile = Join-Path $TargetDir ".wiki\log.md"
     
     $Content = @'
 # Wiki 操作日志
@@ -218,7 +219,7 @@ function New-LogFile {
 }
 
 function New-ProcessedFile {
-    $ProcessedFile = Join-Path $TargetDir ".wiki-processed"
+    $ProcessedFile = Join-Path $TargetDir ".wiki\.wiki-processed"
     
     '{"version": 1, "entries": []}' | Set-Content -Path $ProcessedFile -Encoding UTF8
     Write-Success-Message "创建处理记录文件: $ProcessedFile"
@@ -270,7 +271,7 @@ function New-AgentsFile {
 ## Wiki 结构
 
 ```
-wiki/
+.wiki/
 ├── index.md          # 内容索引
 ├── log.md            # 操作日志
 ├── entities/         # 实体页面
@@ -315,7 +316,7 @@ wiki/
 ## 排除目录
 
 以下目录不会被处理：
-- `wiki/`
+- `.wiki/`
 - `.opencode/`
 - `.git/`
 
@@ -343,6 +344,56 @@ wiki/
         
         Set-Content -Path $AgentsFile -Value $Content -Encoding UTF8
         Write-Success-Message "创建默认 AGENTS.md: $AgentsFile"
+    }
+}
+
+# === Migration functions ===
+function Invoke-MigrateOldStructure {
+    param([string]$TargetDir)
+
+    $OldWikiDir = Join-Path $TargetDir "wiki"
+    $NewWikiDir = Join-Path $TargetDir ".wiki"
+
+    if (-not (Test-Path $OldWikiDir) -or (Test-Path $NewWikiDir)) {
+        return
+    }
+
+    Write-Info-Message "检测到旧版 wiki/ 目录，正在自动迁移至 .wiki/..."
+
+    # Step a: Move wiki/ → .wiki/
+    Move-Item -Path $OldWikiDir -Destination $NewWikiDir -Force
+    Write-Success-Message "已迁移 wiki/ → .wiki/"
+
+    # Step b: Move .wiki-processed into .wiki/
+    $OldProcessed = Join-Path $TargetDir ".wiki-processed"
+    if (Test-Path $OldProcessed) {
+        Move-Item -Path $OldProcessed -Destination (Join-Path $NewWikiDir ".wiki-processed") -Force
+        Write-Success-Message "已迁移 .wiki-processed → .wiki/.wiki-processed"
+    }
+
+    # Step c: Replace wiki/ → .wiki/ in all migrated wiki pages
+    Get-ChildItem -Path $NewWikiDir -Filter "*.md" -Recurse | ForEach-Object {
+        (Get-Content $_.FullName -Raw) -replace 'wiki/', '.wiki/' | Set-Content $_.FullName -Encoding UTF8
+    }
+    Write-Success-Message "已修复 .wiki/ 内所有交叉引用链接"
+}
+
+function Set-HiddenAttributes {
+    param([string]$TargetDir)
+
+    $Dirs = @(
+        Join-Path $TargetDir ".wiki",
+        Join-Path $TargetDir ".opencode"
+    )
+
+    foreach ($Dir in $Dirs) {
+        if (Test-Path $Dir) {
+            $Item = Get-Item $Dir -Force
+            if (-not ($Item.Attributes -band [System.IO.FileAttributes]::Hidden)) {
+                Set-ItemProperty -Path $Dir -Name Attributes -Value ($Item.Attributes -bor [System.IO.FileAttributes]::Hidden)
+                Write-Info-Message "已设置隐藏属性: $Dir"
+            }
+        }
     }
 }
 
@@ -401,7 +452,7 @@ function Update-AgentsFile {
 ## Wiki 结构
 
 ```
-wiki/
+.wiki/
 ├── index.md          # 内容索引
 ├── log.md            # 操作日志
 ├── entities/         # 实体页面
@@ -413,7 +464,7 @@ wiki/
 ## 排除目录
 
 以下目录不会被处理：
-- `wiki/`
+- `.wiki/`
 - `.opencode/`
 - `.git/`
 
@@ -436,6 +487,10 @@ function Update-Install {
     param([string]$TargetDir)
 
     Write-Host ""
+
+    Invoke-MigrateOldStructure -TargetDir $TargetDir
+
+    Write-Host ""
     Write-Info-Message "更新安装将执行以下操作："
     Write-Info-Message "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     Write-Info-Message "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
@@ -456,6 +511,7 @@ function Update-Install {
     Write-Host ""
     Write-Success-Message "更新安装完成！"
 
+    Set-HiddenAttributes -TargetDir $TargetDir
     Invoke-VisionReaderConfig -TargetDir $TargetDir
 }
 
@@ -535,6 +591,8 @@ if (Test-UpdateInstall -TargetDir $TargetDir) {
     New-ProcessedFile
     New-SkillsDirectory
     New-AgentsFile
+
+    Set-HiddenAttributes -TargetDir $TargetDir
 
     Write-CompletionMessage
 
