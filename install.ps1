@@ -292,7 +292,7 @@ function New-SkillsDirectory {
     $SkillsDir = Join-Path $TargetDir ".opencode\skills"
     New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
     
-    $Skills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture")
+    $Skills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture", "wiki-backup")
     
     foreach ($Skill in $Skills) {
         $SrcDir = Join-Path $SkillsSource $Skill
@@ -300,9 +300,7 @@ function New-SkillsDirectory {
         
         if (Test-Path $SrcDir) {
             New-Item -ItemType Directory -Path $DstDir -Force | Out-Null
-            $SrcFile = Join-Path $SrcDir "SKILL.md"
-            $DstFile = Join-Path $DstDir "SKILL.md"
-            Copy-Item $SrcFile $DstFile -Force
+            Copy-Item "$SrcDir\*" $DstDir -Recurse -Force
             Write-Success-Message "安装 skill: $Skill"
         } else {
             Write-Warning-Message "找不到 skill 源文件: $Skill"
@@ -479,7 +477,7 @@ function Update-Skills {
     $SkillsDir = Join-Path $TargetDir ".opencode\skills"
     New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
 
-    $Skills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture")
+    $Skills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture", "wiki-backup")
     $Updated = 0
 
     foreach ($Skill in $Skills) {
@@ -488,9 +486,7 @@ function Update-Skills {
 
         if (Test-Path $SrcDir) {
             New-Item -ItemType Directory -Path $DstDir -Force | Out-Null
-            $SrcFile = Join-Path $SrcDir "SKILL.md"
-            $DstFile = Join-Path $DstDir "SKILL.md"
-            Copy-Item $SrcFile $DstFile -Force
+            Copy-Item "$SrcDir\*" $DstDir -Recurse -Force
             Write-Success-Message "更新 skill: $Skill"
             $Updated++
         } else {
@@ -578,24 +574,31 @@ function Update-Install {
     Write-Info-Message "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     Write-Info-Message "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
     Write-Info-Message "  (3) 更新 .wiki_ignore — 从模板更新，保留用户自定义规则"
+    Write-Info-Message "  (4) 配置备份根目录"
     Write-Host ""
 
-    if (Invoke-PromptUser "Step (1/3): 是否更新 skills？（将覆盖现有 skill 文件）") {
+    if (Invoke-PromptUser "Step (1/4): 是否更新 skills？（将覆盖现有 skill 文件）") {
         Update-Skills -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过更新 skills"
     }
 
-    if (Invoke-PromptUser "Step (2/3): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）") {
+    if (Invoke-PromptUser "Step (2/4): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）") {
         Update-AgentsFile -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过更新 AGENTS.md"
     }
 
-    if (Invoke-PromptUser "Step (3/3): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）") {
+    if (Invoke-PromptUser "Step (3/4): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）") {
         Merge-WikiIgnore -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过更新 .wiki_ignore"
+    }
+
+    if (Invoke-PromptUser "Step (4/4): 是否修改备份根目录？") {
+        Invoke-BackupConfig -TargetDir $TargetDir
+    } else {
+        Write-Info-Message "已跳过备份配置"
     }
 
     Write-Host ""
@@ -626,6 +629,48 @@ function Write-CompletionMessage {
     Write-Host "   /wiki-ingest"
     Write-Host ""
     Write-Host "详细文档请参考 README.md"
+}
+
+function Invoke-BackupConfig {
+    param([string]$TargetDir)
+
+    if ($Force) {
+        $BackupScript = Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.ps1"
+        if (Test-Path $BackupScript) {
+            Write-Info-Message "强制安装模式，保留现有备份配置"
+        } else {
+            Write-Info-Message "强制安装模式，备份使用默认路径: $HOME\.knowledge_base"
+        }
+        return
+    }
+
+    Write-Host ""
+    Write-Info-Message "备份脚本的默认根目录为 $HOME\.knowledge_base"
+    $BackupRoot = Read-Host "请输入备份根目录（留空使用默认值）"
+
+    if ([string]::IsNullOrWhiteSpace($BackupRoot)) {
+        $BackupRoot = "$HOME\.knowledge_base"
+    }
+
+    # Write into backup.ps1
+    $BackupPs1 = Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.ps1"
+    if (Test-Path $BackupPs1) {
+        $Content = Get-Content $BackupPs1 -Raw
+        $Content = $Content -replace '(?<=^\$script:BackupRoot = ").*(?=")', $BackupRoot.Replace('\', '\\')
+        Set-Content -Path $BackupPs1 -Value $Content -Encoding UTF8
+        Write-Success-Message "已配置备份根目录: $BackupRoot"
+    } else {
+        Write-Warning-Message "找不到 backup.ps1，跳过备份配置"
+    }
+
+    # Write into backup.sh (if present)
+    $BackupSh = Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.sh"
+    if (Test-Path $BackupSh) {
+        $Content = Get-Content $BackupSh -Raw
+        $Content = $Content -replace '(?<=^BACKUP_ROOT=").*(?=")', $BackupRoot.Replace('\', '/')
+        Set-Content -Path $BackupSh -Value $Content -Encoding UTF8
+        Write-Success-Message "已配置 backup.sh 备份根目录"
+    }
 }
 
 function Invoke-VisionReaderConfig {
@@ -683,6 +728,8 @@ if (Test-UpdateInstall -TargetDir $TargetDir) {
     New-OutputDirectory
     New-SkillsDirectory
     New-AgentsFile
+
+    Invoke-BackupConfig -TargetDir $TargetDir
 
     Set-HiddenAttributes -TargetDir $TargetDir
 

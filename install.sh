@@ -305,7 +305,7 @@ create_skills_directory() {
     
     mkdir -p "$skills_dir"
     
-    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture")
+    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture" "wiki-backup")
     
     for skill in "${skills[@]}"; do
         local src_dir="$SKILLS_SOURCE/$skill"
@@ -313,7 +313,7 @@ create_skills_directory() {
         
         if [[ -d "$src_dir" ]]; then
             mkdir -p "$dst_dir"
-            cp "$src_dir/SKILL.md" "$dst_dir/SKILL.md"
+            cp -r "$src_dir/"* "$dst_dir/"
             print_success "安装 skill: $skill"
         else
             print_warning "找不到 skill 源文件: $skill"
@@ -487,7 +487,7 @@ update_skills() {
 
     mkdir -p "$skills_dir"
 
-    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture")
+    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture" "wiki-backup")
     local updated=0
 
     for skill in "${skills[@]}"; do
@@ -496,11 +496,9 @@ update_skills() {
 
         if [[ -d "$src" ]]; then
             mkdir -p "$dst"
-            if [[ -f "$src/SKILL.md" ]]; then
-                cp "$src/SKILL.md" "$dst/SKILL.md"
-                print_success "更新 skill: $skill"
-                ((updated++))
-            fi
+            cp -r "$src/"* "$dst/"
+            print_success "更新 skill: $skill"
+            ((updated++))
         else
             print_warning "找不到 skill 源文件: $skill"
         fi
@@ -585,24 +583,31 @@ update_install() {
     print_info "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     print_info "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
     print_info "  (3) 更新 .wiki_ignore — 从模板更新，保留用户自定义规则"
+    print_info "  (4) 配置备份根目录"
     echo ""
 
-    if prompt_user "Step (1/3): 是否更新 skills？（将覆盖现有 skill 文件）"; then
+    if prompt_user "Step (1/4): 是否更新 skills？（将覆盖现有 skill 文件）"; then
         update_skills "$target"
     else
         print_info "已跳过更新 skills"
     fi
 
-    if prompt_user "Step (2/3): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）"; then
+    if prompt_user "Step (2/4): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）"; then
         update_agents_file "$target"
     else
         print_info "已跳过更新 AGENTS.md"
     fi
 
-    if prompt_user "Step (3/3): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）"; then
+    if prompt_user "Step (3/4): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）"; then
         merge_wiki_ignore "$target"
     else
         print_info "已跳过更新 .wiki_ignore"
+    fi
+
+    if prompt_user "Step (4/4): 是否修改备份根目录？"; then
+        configure_backup "$target"
+    else
+        print_info "已跳过备份配置"
     fi
 
     echo ""
@@ -632,6 +637,56 @@ print_completion_message() {
     echo "   /wiki-ingest"
     echo ""
     echo "详细文档请参考 README.md"
+}
+
+configure_backup() {
+    local target="$1"
+
+    if [[ "$FORCE" == "true" ]]; then
+        local backup_script="$target/.opencode/skills/wiki-backup/backup.sh"
+        if [[ -f "$backup_script" && "$(grep -c 'BACKUP_ROOT=' "$backup_script")" -gt 0 ]]; then
+            print_info "强制安装模式，保留现有备份配置"
+        else
+            print_info "强制安装模式，备份使用默认路径: ~/.knowledge_base"
+        fi
+        return 0
+    fi
+
+    echo ""
+    print_info "备份脚本的默认根目录为 ~/.knowledge_base"
+    echo -e "${YELLOW}[询问]${NC} 请输入备份根目录（留空使用默认值）: "
+    read -r backup_root
+
+    if [[ -z "$backup_root" ]]; then
+        backup_root="$HOME/.knowledge_base"
+    fi
+
+    # Normalize path: expand ~
+    backup_root="${backup_root/#\~/$HOME}"
+
+    # Write into backup.sh
+    local backup_sh="$target/.opencode/skills/wiki-backup/backup.sh"
+    if [[ -f "$backup_sh" ]]; then
+        if [[ "$(uname)" == "Darwin" ]]; then
+            sed -i '' "s|^BACKUP_ROOT=.*|BACKUP_ROOT=\"$backup_root\"|" "$backup_sh"
+        else
+            sed -i "s|^BACKUP_ROOT=.*|BACKUP_ROOT=\"$backup_root\"|" "$backup_sh"
+        fi
+        print_success "已配置备份根目录: $backup_root"
+    else
+        print_warning "找不到 backup.sh，跳过备份配置"
+    fi
+
+    # Write into backup.ps1
+    local backup_ps1="$target/.opencode/skills/wiki-backup/backup.ps1"
+    if [[ -f "$backup_ps1" ]]; then
+        if [[ "$(uname)" == "Darwin" ]]; then
+            sed -i '' "s|^\\$script:BackupRoot =.*|\\$script:BackupRoot = \"$backup_root\"|" "$backup_ps1"
+        else
+            sed -i "s|^\\$script:BackupRoot =.*|\\$script:BackupRoot = \"$backup_root\"|" "$backup_ps1"
+        fi
+        print_success "已配置 backup.ps1 备份根目录"
+    fi
 }
 
 configure_vision_reader() {
@@ -680,6 +735,8 @@ main() {
         create_output_directory
         create_skills_directory
         create_agents_file
+
+        configure_backup "$TARGET_DIR"
 
         print_completion_message
 
