@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 set -e
 
@@ -24,26 +24,58 @@ TARGET_DIR=""
 FORCE=false
 OPENCODE_CLI=""
 
-# === Locate opencode CLI ===
-find_opencode_cli() {
-    # Check PATH first
+# === Locate opencode CLI or read from config ===
+# Returns "cli:<path>" for CLI binary, "config:<model>" from config file, or empty on failure
+find_opencode_cli_or_config() {
+    # Layer 1: CLI binary via PATH first
     if command -v opencode &>/dev/null; then
-        echo "opencode"
+        echo "cli:opencode"
         return 0
     fi
-    # Check common install locations
+    # Layer 1: CLI binary via common install paths
     local candidates=(
         "$HOME/.opencode/opencode"
+        "$HOME/.npm-global/bin/opencode"
+        "$HOME/.local/bin/opencode"
+        "$HOME/bin/opencode"
         "/usr/local/bin/opencode"
         "/opt/homebrew/bin/opencode"
     )
     local c
     for c in "${candidates[@]}"; do
         if [[ -x "$c" ]]; then
-            echo "$c"
+            echo "cli:$c"
             return 0
         fi
     done
+
+    # Layer 2: Read model from opencode config file (covers Desktop app users)
+    local config_files=(
+        "$HOME/.config/opencode/opencode.json"
+        "$HOME/.config/opencode/opencode.jsonc"
+    )
+    if [[ -n "$TARGET_DIR" ]]; then
+        config_files+=("$TARGET_DIR/opencode.json" "$TARGET_DIR/opencode.jsonc")
+    fi
+    local f model
+    for f in "${config_files[@]}"; do
+        if [[ -f "$f" ]]; then
+            model=$(grep -o '"model"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" 2>/dev/null | head -1 | sed 's/.*"model"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+            if [[ -n "$model" && "$model" == *"/"* ]]; then
+                echo "config:$model"
+                return 0
+            fi
+        fi
+    done
+
+    # Layer 3: npx fallback for CLI
+    if command -v npx &>/dev/null; then
+        if npx --yes @opencode/cli --help &>/dev/null 2>&1; then
+            echo "cli:npx --yes @opencode/cli"
+            return 0
+        fi
+    fi
+
     return 1
 }
 
@@ -169,18 +201,30 @@ parse_opencode_models() {
     return 0
 }
 
-# === Interactive model selection via opencode CLI ===
+# === Model selection: CLI interactive or config auto-detect ===
 select_model_opencode() {
-    if [[ -z "$OPENCODE_CLI" ]]; then
-        print_warning "未找到 opencode CLI，将切换到手动配置"
+    local result="$OPENCODE_CLI"
+
+    if [[ -z "$result" ]]; then
+        print_warning "未找到 opencode CLI 或配置文件，将切换到手动配置"
         return 1
     fi
+
+    # Handle config-based model (Desktop app user — no CLI binary)
+    if [[ "$result" == config:* ]]; then
+        SELECTED_MODEL="${result#config:}"
+        print_info "从 opencode 配置文件中检测到模型: $SELECTED_MODEL"
+        return 0
+    fi
+
+    # Handle CLI-based model selection
+    local cli_path="${result#cli:}"
 
     print_info "正在获取可用 provider 和模型列表..."
 
     local models_output
-    models_output=$("$OPENCODE_CLI" models 2>&1) || {
-        print_warning "无法执行 '$OPENCODE_CLI models'"
+    models_output=$($cli_path models 2>&1) || {
+        print_warning "无法执行 '$cli_path models'"
         return 1
     }
 
@@ -337,7 +381,7 @@ main() {
     print_info "开始配置 vision-reader subagent..."
     echo ""
 
-    OPENCODE_CLI="$(find_opencode_cli || true)"
+    OPENCODE_CLI="$(find_opencode_cli_or_config || true)"
 
     SELECTED_MODEL=""
     PROVIDER=""

@@ -38,6 +38,34 @@ function Find-OpencodeCli {
 
 $script:OpencodeCli = Find-OpencodeCli
 
+# === Read model from opencode config (covers Desktop app users) ===
+function Read-OpencodeConfigModel {
+    $configCandidates = @(
+        Join-Path $HOME ".config\opencode\opencode.json"
+        Join-Path $HOME ".config\opencode\opencode.jsonc"
+        Join-Path $HOME ".config\opencode\opencode.yml"
+        Join-Path $HOME ".config\opencode\opencode.yaml"
+    )
+    if ($TargetDir) {
+        $configCandidates += Join-Path $TargetDir "opencode.json"
+        $configCandidates += Join-Path $TargetDir "opencode.jsonc"
+    }
+    foreach ($cfg in $configCandidates) {
+        if (Test-Path $cfg) {
+            try {
+                $content = Get-Content -Path $cfg -Raw -ErrorAction Stop
+                $json = $content | ConvertFrom-Json -ErrorAction Stop
+                if ($json.model -and $json.model -match '/') {
+                    return $json.model
+                }
+            } catch {
+                continue
+            }
+        }
+    }
+    return $null
+}
+
 function Show-Help {
     Write-Host "LLM Wikier vision-reader 配置脚本"
     Write-Host ""
@@ -158,7 +186,12 @@ function Invoke-OpencodeModels {
 # === Interactive selection ===
 function Select-ModelOpencode {
     if (-not $script:OpencodeCli) {
-        Write-Warning-Message "未找到 opencode CLI，将切换到手动配置"
+        $configModel = Read-OpencodeConfigModel
+        if ($configModel) {
+            Write-Info-Message "从 opencode 配置文件中检测到模型: $configModel"
+            return $configModel
+        }
+        Write-Warning-Message "未找到 opencode CLI 或配置文件，将切换到手动配置"
         return $null
     }
 
