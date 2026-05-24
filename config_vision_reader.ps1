@@ -149,7 +149,49 @@ function Test-ExistingConfig {
             exit 0
         }
         Write-Info-Message "将更新现有配置"
+
+        if (Get-ExistingVisionReaderConfig -ConfigFile $ConfigFile) {
+            $script:ConfigPreserved = $true
+            return
+        }
+        Write-Warning-Message "无法从现有配置中提取模型信息，将进入正常配置流程"
     }
+}
+
+# === Parse existing config to preserve model/apiKey on update ===
+function Get-ExistingVisionReaderConfig {
+    param([string]$ConfigFile)
+
+    if (-not (Test-Path $ConfigFile)) {
+        return $null
+    }
+
+    $Content = Get-Content $ConfigFile -Raw -ErrorAction SilentlyContinue
+    if (-not $Content) {
+        return $null
+    }
+
+    # Extract model from YAML frontmatter
+    if ($Content -match '^---\s*\n(.*?)\n---') {
+        $Frontmatter = $matches[1]
+        if ($Frontmatter -match 'model:\s*(\S+)') {
+            $Model = $matches[1]
+            if (-not [string]::IsNullOrWhiteSpace($Model) -and $Model -ne '/') {
+                $script:SelectedModel = $Model
+
+                # Extract apiKey env var from provider section (optional)
+                if ($Frontmatter -match 'apiKey:\s*"{env:([^}]+)}"') {
+                    $script:ApiKeyEnv = $matches[1]
+                    $script:Provider = $Model.Split('/')[0]
+                }
+
+                Write-Info-Message "从已有配置中检测到模型: $Model"
+                return $Model
+            }
+        }
+    }
+
+    return $null
 }
 
 # === Parse opencode models ===
@@ -358,14 +400,16 @@ Write-Host ""
 Write-Info-Message "开始配置 vision-reader subagent..."
 Write-Host ""
 
-$SelectedModel = Select-ModelOpencode
-if (-not $SelectedModel) {
-    $SelectedModel = Invoke-ManualConfig
-}
+if (-not $script:ConfigPreserved) {
+    $SelectedModel = Select-ModelOpencode
+    if (-not $SelectedModel) {
+        $SelectedModel = Invoke-ManualConfig
+    }
 
-if ([string]::IsNullOrWhiteSpace($SelectedModel) -or $SelectedModel -eq "/") {
-    Write-Error-Message "配置不完整（模型信息缺失），未保存"
-    exit 1
+    if ([string]::IsNullOrWhiteSpace($SelectedModel) -or $SelectedModel -eq "/") {
+        Write-Error-Message "配置不完整（模型信息缺失），未保存"
+        exit 1
+    }
 }
 
 Write-AgentConfig -Model $SelectedModel

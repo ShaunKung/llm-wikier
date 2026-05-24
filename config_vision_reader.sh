@@ -182,7 +182,48 @@ check_existing_config() {
             exit 0
         fi
         print_info "将更新现有配置"
+
+        if parse_existing_config "$config_file"; then
+            CONFIG_PRESERVED=true
+            return 0
+        fi
+        print_warning "无法从现有配置中提取模型信息，将进入正常配置流程"
     fi
+}
+
+# === Parse existing config to preserve model/apiKey on update ===
+parse_existing_config() {
+    local config_file="$1"
+
+    if [[ ! -f "$config_file" ]]; then
+        return 1
+    fi
+
+    # Extract model from YAML frontmatter
+    local model
+    model=$(sed -n '/^---$/,/^---$/p' "$config_file" | grep "^model:" | head -1 | sed 's/^model:[[:space:]]*//')
+
+    if [[ -z "$model" || "$model" == "/" ]]; then
+        return 1
+    fi
+
+    SELECTED_MODEL="$model"
+
+    # Extract apiKey env var from provider section (optional)
+    local provider_section
+    provider_section=$(sed -n '/^---$/,/^---$/p' "$config_file" | sed -n '/^provider:/,/^[a-z]/p' | head -n -1)
+
+    if [[ -n "$provider_section" ]]; then
+        local api_key_env
+        api_key_env=$(echo "$provider_section" | grep "apiKey:" | sed 's/.*{env:\([^}]*\)}.*/\1/')
+        if [[ -n "$api_key_env" ]]; then
+            API_KEY_ENV="$api_key_env"
+            PROVIDER="${model%%/*}"
+        fi
+    fi
+
+    print_info "从已有配置中检测到模型: $SELECTED_MODEL"
+    return 0
 }
 
 # === Parse opencode models output ===
@@ -381,26 +422,28 @@ main() {
     print_info "开始配置 vision-reader subagent..."
     echo ""
 
-    OPENCODE_CLI="$(find_opencode_cli_or_config || true)"
+    if [[ "$CONFIG_PRESERVED" != "true" ]]; then
+        OPENCODE_CLI="$(find_opencode_cli_or_config || true)"
 
-    SELECTED_MODEL=""
-    PROVIDER=""
-    MODEL_ID=""
-    API_KEY_ENV=""
+        SELECTED_MODEL=""
+        PROVIDER=""
+        MODEL_ID=""
+        API_KEY_ENV=""
 
-    if ! select_model_opencode; then
-        manual_model_config
-    fi
+        if ! select_model_opencode; then
+            manual_model_config
+        fi
 
-    if [[ -z "$SELECTED_MODEL" ]] || [[ "$SELECTED_MODEL" == "/" ]]; then
-        print_error "配置不完整（模型信息缺失），未保存"
-        exit 1
-    fi
+        if [[ -z "$SELECTED_MODEL" ]] || [[ "$SELECTED_MODEL" == "/" ]]; then
+            print_error "配置不完整（模型信息缺失），未保存"
+            exit 1
+        fi
 
-    # Extract provider for extra fields
-    if [[ "$SELECTED_MODEL" == *"/"* ]]; then
-        PROVIDER="${SELECTED_MODEL%%/*}"
-        MODEL_ID="${SELECTED_MODEL#*/}"
+        # Extract provider for extra fields
+        if [[ "$SELECTED_MODEL" == *"/"* ]]; then
+            PROVIDER="${SELECTED_MODEL%%/*}"
+            MODEL_ID="${SELECTED_MODEL#*/}"
+        fi
     fi
 
     write_agent_config
