@@ -343,6 +343,12 @@ for page in all_pages:
 4. **保留备份**：清理后观察几天再删除备份
 5. **渐进清理**：对于大量孤立页面，分批处理
 
+## 与 wiki-capture 的协作
+
+本 skill 执行期间，对话中可能出现对 skill 功能的说明性内容。这些内容属于基础设施域（Layer 0/Layer 1），不应被 wiki-capture 捕获。Agent 在执行本 skill 时应注意：
+- 当本 skill 正在处理任务时，抑制 wiki-capture 的自动感知
+- 本 skill 完成后，恢复 wiki-capture 的正常监听
+
 ## 命令行示例
 
 ```bash

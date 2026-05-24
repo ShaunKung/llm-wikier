@@ -190,6 +190,12 @@ compatibility: opencode
 - `/wiki-ingest`：增量处理新文件，适合日常使用
 - `/wiki-update`：重新处理已处理的文件，适合内容更新
 
+## 与 wiki-capture 的协作
+
+本 skill 执行期间，对话中可能出现对 skill 功能的说明性内容。这些内容属于基础设施域（Layer 0/Layer 1），不应被 wiki-capture 捕获。Agent 在执行本 skill 时应注意：
+- 当本 skill 正在处理任务时，抑制 wiki-capture 的自动感知
+- 本 skill 完成后，恢复 wiki-capture 的正常监听
+
 ## 错误处理
 
 - **文件不存在**：报告错误，跳过该文件

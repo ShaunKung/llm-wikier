@@ -226,6 +226,12 @@ compatibility: opencode
 3. 查看相关页面追踪更多线索
 ```
 
+## 与 wiki-capture 的协作
+
+本 skill 执行期间，对话中可能出现对 skill 功能的说明性内容。这些内容属于基础设施域（Layer 0/Layer 1），不应被 wiki-capture 捕获。Agent 在执行本 skill 时应注意：
+- 当本 skill 正在处理任务时，抑制 wiki-capture 的自动感知
+- 本 skill 完成后，恢复 wiki-capture 的正常监听
+
 ## 与其他命令的关系
 
 - 处理后如果有新发现，可以运行 `/wiki-ingest` 添加新源

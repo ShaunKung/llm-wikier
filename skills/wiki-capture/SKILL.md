@@ -9,6 +9,16 @@ compatibility: opencode
 
 `wiki-capture` 不通过用户手动调用。Agent 在对话中自动感知新信息后加载本 skill，按照标准化流程将对话中的知识沉淀到 wiki。
 
+## 内容域边界
+
+对话中的内容可分为三个层级，仅 Layer 2 应进入捕获流程：
+
+| 层级 | 定义 | 示例 | 可捕获? |
+|------|------|------|---------|
+| Layer 0 | 来自 `.opencode/skills/` 的 SKILL.md 定义、脚本等基础设施内容 | wiki-ingest 的功能说明 | ❌ |
+| Layer 1 | Agent 对系统功能、规则、技能或配置的解释性输出 | "我来解释 wiki-capture 的冲突检测逻辑" | ❌ |
+| Layer 2 | 用户个人知识域的真实陈述——事实、观点、决定、纠正 | "React 19 于 2025 年发布" | ✅ |
+
 ## 触发条件
 
 Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获）：
@@ -25,7 +35,10 @@ Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获�
 - 纯粹基于 wiki 内容的查询和回答
 - 用户要求汇总已有信息
 - 用户要求删除或清理内容（使用 `/wiki-prune`）
-- 用户已主动调用了 `/wiki-ingest` 或 `/wiki-update` 处理文件
+- 任何其他 wiki skill（ingest / update / init / lint / prune / backup / query）正在执行中（含其说明性输出）
+- 对话内容来自 `.opencode/skills/` 下的 SKILL.md 定义（包括本 skill 自身——自排除原则）
+- Agent 正在解释系统功能、规则或技能的工作方式（即 Layer 1 内容）
+- 内容涉及知识库工具本身的安装、配置或维护流程
 
 ## 执行流程
 
@@ -230,7 +243,10 @@ Agent: [继续正常对话]
 
 | Skill | 关系 |
 |-------|------|
-| `wiki-ingest` | ingest 处理文件来源，capture 处理对话来源 |
-| `wiki-update` | update 针对文件变更，capture 的纠正可能与 update 的源文件产生关联 |
-| `wiki-query` | 查询结果如发现新的空白领域，可触发 capture 记录 |
-| `wiki-lint` | lint 发现的矛盾可能与 capture 的冲突记录有关 |
+| `wiki-ingest` | ingest 处理文件来源，capture 处理对话来源；ingest 执行期间 capture 应抑制触发 |
+| `wiki-update` | update 针对文件变更；update 执行期间 capture 应抑制触发 |
+| `wiki-query` | 查询结果如发现新的空白领域可触发 capture 记录；query 执行期间 capture 应抑制触发 |
+| `wiki-lint` | lint 发现的矛盾可能与 capture 的冲突记录有关；lint 执行期间 capture 应抑制触发 |
+| `wiki-init` | init 执行期间 capture 应抑制触发 |
+| `wiki-prune` | prune 执行期间 capture 应抑制触发 |
+| `wiki-backup` | backup 执行期间 capture 应抑制触发 |

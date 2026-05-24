@@ -197,6 +197,12 @@ compatibility: opencode
 - 图片文件会单独处理，优先分析文本内容
 - 如果文件内容与已有 wiki 页面存在矛盾，在相关页面标注争议
 
+## 与 wiki-capture 的协作
+
+本 skill 执行期间，对话中可能出现对 skill 功能的说明性内容。这些内容属于基础设施域（Layer 0/Layer 1），不应被 wiki-capture 捕获。Agent 在执行本 skill 时应注意：
+- 当本 skill 正在处理任务时，抑制 wiki-capture 的自动感知
+- 本 skill 完成后，恢复 wiki-capture 的正常监听
+
 ## 错误处理
 
 - 文件读取失败：跳过并记录错误到日志

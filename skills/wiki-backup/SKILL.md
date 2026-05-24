@@ -91,3 +91,9 @@ bash .opencode/skills/wiki-backup/backup.sh --manual
 - 恢复仅覆盖 `.wiki/`、`AGENTS.md`、`.wiki_ignore`，不影响知识库中其他文件
 - 恢复后建议运行 `/wiki-lint` 检查 wiki 健康状态
 - 如需回退到更早的版本，重复上述步骤选择对应日期的备份文件即可
+
+## 与 wiki-capture 的协作
+
+本 skill 执行期间，对话中可能出现对 skill 功能的说明性内容。这些内容属于基础设施域（Layer 0/Layer 1），不应被 wiki-capture 捕获。Agent 在执行本 skill 时应注意：
+- 当本 skill 正在处理任务时，抑制 wiki-capture 的自动感知
+- 本 skill 完成后，恢复 wiki-capture 的正常监听
