@@ -498,7 +498,7 @@ update_skills() {
             mkdir -p "$dst"
             cp -r "$src/"* "$dst/"
             print_success "更新 skill: $skill"
-            ((updated++))
+            updated=$((updated + 1))
         else
             print_warning "找不到 skill 源文件: $skill"
         fi
