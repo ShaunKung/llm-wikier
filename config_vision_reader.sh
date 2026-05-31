@@ -165,32 +165,6 @@ read_user_input() {
     eval "$var_name=\"$value\""
 }
 
-# === Detect existing config ===
-check_existing_config() {
-    local config_file="$TARGET_DIR/.opencode/agents/vision-reader.md"
-    if [[ -f "$config_file" ]]; then
-        print_info "检测到已有 vision-reader 配置"
-        echo ""
-        echo "当前配置:"
-        echo "----------------------------------------"
-        cat "$config_file"
-        echo "----------------------------------------"
-        echo ""
-
-        if ! prompt_user "是否更新此配置？"; then
-            print_info "已取消，保留现有配置"
-            exit 0
-        fi
-        print_info "将更新现有配置"
-
-        if parse_existing_config "$config_file"; then
-            CONFIG_PRESERVED=true
-            return 0
-        fi
-        print_warning "无法从现有配置中提取模型信息，将进入正常配置流程"
-    fi
-}
-
 # === Parse existing config to preserve model/apiKey on update ===
 parse_existing_config() {
     local config_file="$1"
@@ -416,34 +390,100 @@ print_completion() {
 main() {
     parse_args "$@"
     validate_target_dir
-    check_existing_config
+
+    local config_file="$TARGET_DIR/.opencode/agents/vision-reader.md"
+    local config_exists=false
+    local existing_model=""
+
+    # === S2: Detect existing config ===
+    if [[ -f "$config_file" ]]; then
+        config_exists=true
+
+        echo ""
+        print_info "检测到已有 vision-reader 配置"
+        echo ""
+        echo "当前配置:"
+        echo "----------------------------------------"
+        cat "$config_file"
+        echo "----------------------------------------"
+        echo ""
+
+        if ! prompt_user "是否更新此配置？"; then
+            print_info "已取消，保留现有配置"
+            exit 0
+        fi
+
+        # Extract existing model info for S2.2 fallback
+        if parse_existing_config "$config_file"; then
+            existing_model="$SELECTED_MODEL"
+        fi
+    fi
 
     echo ""
     print_info "开始配置 vision-reader subagent..."
     echo ""
 
-    if [[ "$CONFIG_PRESERVED" != "true" ]]; then
-        OPENCODE_CLI="$(find_opencode_cli_or_config || true)"
+    # === S2.1 / S2.2: Model selection ===
+    if [[ "$config_exists" == "true" ]]; then
+        # Always prompt for this choice, regardless of --force
+        local update_model=true
+        echo -e "${YELLOW}[询问]${NC} 是否更新模型选择？ [Y/n] "
+        read -r response_update
+        case "$response_update" in
+            [nN]|[nN][oO]) update_model=false ;;
+        esac
 
+        if [[ "$update_model" == "true" ]]; then
+            # S2.1: full model selection
+            SELECTED_MODEL=""
+            PROVIDER=""
+            MODEL_ID=""
+            API_KEY_ENV=""
+            OPENCODE_CLI="$(find_opencode_cli_or_config || true)"
+
+            if ! select_model_opencode; then
+                manual_model_config
+            fi
+        else
+            # S2.2: preserve existing model
+            if [[ -n "$existing_model" ]]; then
+                print_info "保留现有模型: $existing_model"
+            else
+                print_warning "无法从现有配置中提取模型，将进入模型选择"
+                SELECTED_MODEL=""
+                PROVIDER=""
+                MODEL_ID=""
+                API_KEY_ENV=""
+                OPENCODE_CLI="$(find_opencode_cli_or_config || true)"
+
+                if ! select_model_opencode; then
+                    manual_model_config
+                fi
+            fi
+        fi
+    else
+        # No existing config: always do model selection
         SELECTED_MODEL=""
         PROVIDER=""
         MODEL_ID=""
         API_KEY_ENV=""
+        OPENCODE_CLI="$(find_opencode_cli_or_config || true)"
 
         if ! select_model_opencode; then
             manual_model_config
         fi
+    fi
 
-        if [[ -z "$SELECTED_MODEL" ]] || [[ "$SELECTED_MODEL" == "/" ]]; then
-            print_error "配置不完整（模型信息缺失），未保存"
-            exit 1
-        fi
+    # === Validate ===
+    if [[ -z "$SELECTED_MODEL" ]] || [[ "$SELECTED_MODEL" == "/" ]]; then
+        print_error "配置不完整（模型信息缺失），未保存"
+        exit 1
+    fi
 
-        # Extract provider for extra fields
-        if [[ "$SELECTED_MODEL" == *"/"* ]]; then
-            PROVIDER="${SELECTED_MODEL%%/*}"
-            MODEL_ID="${SELECTED_MODEL#*/}"
-        fi
+    # Extract provider for extra fields
+    if [[ "$SELECTED_MODEL" == *"/"* ]]; then
+        PROVIDER="${SELECTED_MODEL%%/*}"
+        MODEL_ID="${SELECTED_MODEL#*/}"
     fi
 
     write_agent_config

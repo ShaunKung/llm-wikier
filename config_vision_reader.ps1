@@ -131,33 +131,6 @@ function Test-TargetDir {
     }
 }
 
-# === Check existing config ===
-function Test-ExistingConfig {
-    $ConfigFile = Join-Path $TargetDir ".opencode\agents\vision-reader.md"
-
-    if (Test-Path $ConfigFile) {
-        Write-Info-Message "检测到已有 vision-reader 配置"
-        Write-Host ""
-        Write-Host "当前配置:"
-        Write-Host "----------------------------------------"
-        Get-Content $ConfigFile
-        Write-Host "----------------------------------------"
-        Write-Host ""
-
-        if (-not (Invoke-PromptUser "是否更新此配置？")) {
-            Write-Info-Message "已取消，保留现有配置"
-            exit 0
-        }
-        Write-Info-Message "将更新现有配置"
-
-        if (Get-ExistingVisionReaderConfig -ConfigFile $ConfigFile) {
-            $script:ConfigPreserved = $true
-            return
-        }
-        Write-Warning-Message "无法从现有配置中提取模型信息，将进入正常配置流程"
-    }
-}
-
 # === Parse existing config to preserve model/apiKey on update ===
 function Get-ExistingVisionReaderConfig {
     param([string]$ConfigFile)
@@ -166,32 +139,48 @@ function Get-ExistingVisionReaderConfig {
         return $null
     }
 
-    $Content = Get-Content $ConfigFile -Raw -ErrorAction SilentlyContinue
-    if (-not $Content) {
+    # Read line by line (handles both \r\n and \n)
+    $Lines = Get-Content $ConfigFile -ErrorAction SilentlyContinue
+    if (-not $Lines -or $Lines.Count -eq 0) {
         return $null
     }
 
-    # Extract model from YAML frontmatter
-    if ($Content -match '^---\s*\n(.*?)\n---') {
-        $Frontmatter = $matches[1]
-        if ($Frontmatter -match 'model:\s*(\S+)') {
-            $Model = $matches[1]
-            if (-not [string]::IsNullOrWhiteSpace($Model) -and $Model -ne '/') {
-                $script:SelectedModel = $Model
+    $InFrontmatter = $false
+    $Model = $null
+    $ApiKeyEnv = $null
 
-                # Extract apiKey env var from provider section (optional)
-                if ($Frontmatter -match 'apiKey:\s*"{env:([^}]+)}"') {
-                    $script:ApiKeyEnv = $matches[1]
-                    $script:Provider = $Model.Split('/')[0]
-                }
-
-                Write-Info-Message "从已有配置中检测到模型: $Model"
-                return $Model
+    foreach ($Line in $Lines) {
+        $Trimmed = $Line.Trim()
+        if ($Trimmed -eq '---') {
+            if (-not $InFrontmatter) {
+                $InFrontmatter = $true
+                continue
             }
+            # End of frontmatter
+            break
+        }
+        if (-not $InFrontmatter) { continue }
+
+        if ($Trimmed -match '^model:\s*(\S+)') {
+            $Model = $matches[1]
+        }
+        if ($Trimmed -match 'apiKey:\s*"{env:([^}]+)}"') {
+            $ApiKeyEnv = $matches[1]
         }
     }
 
-    return $null
+    if ([string]::IsNullOrWhiteSpace($Model) -or $Model -eq '/') {
+        return $null
+    }
+
+    $script:SelectedModel = $Model
+    if ($ApiKeyEnv) {
+        $script:ApiKeyEnv = $ApiKeyEnv
+        $script:Provider = $Model.Split('/')[0]
+    }
+
+    Write-Info-Message "从已有配置中检测到模型: $Model"
+    return $Model
 }
 
 # === Parse opencode models ===
@@ -374,7 +363,7 @@ function Write-Completion {
     Write-Success-Message "vision-reader subagent 配置完成！"
     Write-Host "======================================"
     Write-Host ""
-    Write-Host "模型: $SelectedModel"
+    Write-Host "模型: $script:SelectedModel"
     if ($script:ApiKeyEnv) {
         Write-Host "API Key: 环境变量 $script:ApiKeyEnv"
     }
@@ -394,23 +383,97 @@ if ($Help) {
 }
 
 Test-TargetDir
-Test-ExistingConfig
+
+$ConfigFile = Join-Path $TargetDir ".opencode\agents\vision-reader.md"
+$ConfigExists = $false
+$ExistingModel = ""
+
+# === S2: Detect existing config ===
+if (Test-Path $ConfigFile) {
+    $ConfigExists = $true
+
+    Write-Host ""
+    Write-Info-Message "检测到已有 vision-reader 配置"
+    Write-Host ""
+    Write-Host "当前配置:"
+    Write-Host "----------------------------------------"
+    Get-Content $ConfigFile
+    Write-Host "----------------------------------------"
+    Write-Host ""
+
+    if (-not (Invoke-PromptUser "是否更新此配置？")) {
+        Write-Info-Message "已取消，保留现有配置"
+        exit 0
+    }
+
+    # Extract existing model info for S2.2 fallback
+    $Extracted = Get-ExistingVisionReaderConfig -ConfigFile $ConfigFile
+    if ($Extracted) {
+        $ExistingModel = $script:SelectedModel
+    }
+}
 
 Write-Host ""
 Write-Info-Message "开始配置 vision-reader subagent..."
 Write-Host ""
 
-if (-not $script:ConfigPreserved) {
+# === S2.1 / S2.2: Model selection ===
+if ($ConfigExists) {
+    # Always prompt for this choice, regardless of -Force
+    Write-Host "[询问] " -ForegroundColor Yellow -NoNewline
+    Write-Host "是否更新模型选择？ [Y/n] " -NoNewline
+    $ResponseUpdate = Read-Host
+    $UpdateModel = ($ResponseUpdate -notmatch '^[nN](o|O)?$')
+
+    if ($UpdateModel) {
+        # S2.1: full model selection
+        $script:SelectedModel = $null
+        $script:Provider = ""
+        $script:ModelId = ""
+        $script:ApiKeyEnv = ""
+
+        $SelectedModel = Select-ModelOpencode
+        if (-not $SelectedModel) {
+            $SelectedModel = Invoke-ManualConfig
+        }
+        $script:SelectedModel = $SelectedModel
+    } else {
+        # S2.2: preserve existing model
+        if (-not [string]::IsNullOrWhiteSpace($ExistingModel)) {
+            Write-Info-Message "保留现有模型: $ExistingModel"
+        } else {
+            Write-Warning-Message "无法从现有配置中提取模型，将进入模型选择"
+            $script:SelectedModel = $null
+            $script:Provider = ""
+            $script:ModelId = ""
+            $script:ApiKeyEnv = ""
+
+            $SelectedModel = Select-ModelOpencode
+            if (-not $SelectedModel) {
+                $SelectedModel = Invoke-ManualConfig
+            }
+            $script:SelectedModel = $SelectedModel
+        }
+    }
+} else {
+    # No existing config: always do model selection
+    $script:SelectedModel = $null
+    $script:Provider = ""
+    $script:ModelId = ""
+    $script:ApiKeyEnv = ""
+
     $SelectedModel = Select-ModelOpencode
     if (-not $SelectedModel) {
         $SelectedModel = Invoke-ManualConfig
     }
-
-    if ([string]::IsNullOrWhiteSpace($SelectedModel) -or $SelectedModel -eq "/") {
-        Write-Error-Message "配置不完整（模型信息缺失），未保存"
-        exit 1
-    }
+    $script:SelectedModel = $SelectedModel
 }
 
-Write-AgentConfig -Model $SelectedModel
+# === Validate ===
+if ([string]::IsNullOrWhiteSpace($script:SelectedModel) -or $script:SelectedModel -eq "/") {
+    Write-Error-Message "配置不完整（模型信息缺失），未保存"
+    exit 1
+}
+
+Write-AgentConfig -Model $script:SelectedModel
 Write-Completion
