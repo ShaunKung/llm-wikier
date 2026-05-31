@@ -463,7 +463,7 @@ function Set-HiddenAttributes {
         if (Test-Path $Dir) {
             $Item = Get-Item $Dir -Force
             if (-not ($Item.Attributes -band [System.IO.FileAttributes]::Hidden)) {
-                Set-ItemProperty -Path $Dir -Name Attributes -Value ($Item.Attributes -bor [System.IO.FileAttributes]::Hidden)
+                $Item.Attributes = $Item.Attributes -bor [System.IO.FileAttributes]::Hidden
                 Write-Info-Message "已设置隐藏属性: $Dir"
             }
         }
