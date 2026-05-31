@@ -431,6 +431,133 @@ EOF
 }
 
 # === Migration functions ===
+migrate_processed_file() {
+    local target="$1"
+    local processed="$target/.wiki/.wiki-processed"
+
+    [[ ! -f "$processed" ]] && return 0
+
+    local version
+    version=$(grep -o '"version": [[:digit:]]*' "$processed" | grep -o '[[:digit:]]*')
+    [[ "$version" != "1" ]] && return 0
+
+    print_info "检测到 .wiki-processed v1，正在迁移至 v2..."
+    cp "$processed" "$processed.bak"
+    print_info "已备份: $processed.bak"
+
+    # Build hash→path map and migrate using python3 (primary) or jq (fallback)
+    if command -v python3 &>/dev/null; then
+        local result
+        result=$(python3 - "$target" "$processed" << 'PYEOF'
+import json, os, hashlib, sys, time
+kb_dir = sys.argv[1]
+processed_file = sys.argv[2]
+with open(processed_file, 'r') as f:
+    data = json.load(f)
+if data.get('version') != 1:
+    sys.exit(0)
+hash_map = {}
+path_map = {}
+for root, dirs, files in os.walk(kb_dir):
+    rel_root = os.path.relpath(root, kb_dir)
+    if any(rel_root == d or rel_root.startswith(d + os.sep) for d in ['.wiki', '.opencode', '.git']):
+        continue
+    for fname in files:
+        fpath = os.path.join(root, fname)
+        rel_path = os.path.relpath(fpath, kb_dir).replace('\\', '/')
+        if not os.path.isfile(fpath): continue
+        try:
+            h = hashlib.sha256(open(fpath, 'rb').read()).hexdigest()
+            hash_map[h] = rel_path
+            path_map[rel_path] = h
+        except OSError: pass
+kept = recovered = removed = 0
+filled = 0
+ts = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+new_entries = []
+for entry in data.get('entries', []):
+    path = entry.get('path', '')
+    h = entry.get('hash', '') or ''
+    full = os.path.join(kb_dir, path)
+    if not h and os.path.exists(full):
+        # Fill missing hash from file
+        h = path_map.get(path, '')
+        if not h:
+            try:
+                h = hashlib.sha256(open(full, 'rb').read()).hexdigest()
+            except OSError: pass
+        if h:
+            entry['hash'] = h
+            entry['processed'] = ts
+            filled += 1
+    if not h and not os.path.exists(full):
+        removed += 1
+        continue
+    if os.path.exists(full):
+        kept += 1
+        new_entries.append(entry)
+    elif h in hash_map:
+        recovered += 1
+        entry['path'] = hash_map[h]
+        new_entries.append(entry)
+    else:
+        removed += 1
+data['version'] = 2
+data['entries'] = new_entries
+with open(processed_file, 'w') as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+print(f"{kept}|{recovered}|{removed}|{filled}")
+PYEOF
+        )
+        kept=$(echo "$result" | cut -d'|' -f1)
+        recovered=$(echo "$result" | cut -d'|' -f2)
+        removed=$(echo "$result" | cut -d'|' -f3)
+        filled=$(echo "$result" | cut -d'|' -f4)
+
+    elif command -v jq &>/dev/null; then
+        # jq fallback: simplified migration (ghost cleanup only, no hash recovery)
+        local tmp
+        tmp=$(mktemp)
+        echo '{"version": 2, "entries": []}' > "$tmp"
+        local total=0 kept_j=0 removed_j=0 filled_j=0
+        while IFS= read -r entry; do
+            [[ -z "$entry" ]] && continue
+            total=$((total + 1))
+            local ep eh
+            ep=$(echo "$entry" | jq -r '.path')
+            eh=$(echo "$entry" | jq -r '.hash // ""')
+            if [[ -f "$target/$ep" ]]; then
+                kept_j=$((kept_j + 1))
+                if [[ -z "$eh" ]]; then
+                    # Fill missing hash
+                    local new_hash
+                    new_hash=$(sha256sum "$target/$ep" 2>/dev/null | cut -d' ' -f1) || \
+                    new_hash=$(shasum -a 256 "$target/$ep" 2>/dev/null | cut -d' ' -f1) || \
+                    new_hash=$(md5sum "$target/$ep" 2>/dev/null | cut -d' ' -f1) || true
+                    if [[ -n "$new_hash" ]]; then
+                        entry=$(echo "$entry" | jq --arg h "$new_hash" '.hash = $h')
+                        filled_j=$((filled_j + 1))
+                    fi
+                fi
+                jq --argjson e "$entry" '.entries += [$e]' "$tmp" > "${tmp}.new" && mv "${tmp}.new" "$tmp"
+            else
+                removed_j=$((removed_j + 1))
+            fi
+        done < <(jq -c '.entries[]' "$processed")
+        cp "$tmp" "$processed"
+        rm -f "$tmp"
+        kept=$kept_j; recovered=0; removed=$removed_j; filled=$filled_j
+    else
+        print_warning "需要 python3 或 jq 来执行迁移，跳过迁移"
+        print_info "保留原始 .wiki-processed（version 仍为 1），可稍后手动迁移"
+        return 0
+    fi
+
+    echo ""
+    print_success "迁移完成: 保留 ${kept:-0} 条, 恢复 ${recovered:-0} 条, 移除 ${removed:-0} 条, 补填 ${filled:-0} 条"
+    print_info "回滚方法: cp \"$processed.bak\" \"$processed\""
+}
+
 migrate_old_structure() {
     local target="$1"
 
@@ -575,6 +702,8 @@ update_install() {
     local target="$1"
 
     echo ""
+
+    migrate_processed_file "$target"
 
     migrate_old_structure "$target"
 

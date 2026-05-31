@@ -62,6 +62,36 @@ compatibility: opencode
 
 ## 清理项目
 
+### 0. 幽灵条目清理 (.wiki-processed)
+
+**定义**：`.wiki/.wiki-processed` 中 entries 的 path 指向不存在的源文件
+
+**检查逻辑**：
+- 遍历 `.wiki-processed` 的 entries
+- 对每条，检查文件是否存在记录路径
+- 不存在时，在全 KB 源文件中搜索匹配的 hash
+  - 找到匹配 → 文件已移动，自动更新 path（自愈）
+  - 未找到匹配 → 文件已删除，移除该条目
+
+**处理策略**：
+
+| 情况 | 操作 |
+|------|------|
+| 文件已移动（hash 匹配） | 更新 path 为新位置 |
+| 文件已删除（hash 无匹配） | 移除该条目 |
+
+**示例报告**：
+```
+### 幽灵条目清理 (3 个)
+
+已自愈（path 已更新）：
+- `papers/old.md` → `archive/paper.md`
+
+已移除（文件已删除）：
+- `notes/deleted-note.md`
+- `temp/scratch.txt`
+```
+
 ### 1. 孤立页面
 
 **定义**：没有任何其他页面链接到的页面

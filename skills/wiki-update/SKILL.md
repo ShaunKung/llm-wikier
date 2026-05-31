@@ -17,6 +17,10 @@ compatibility: opencode
 ## 执行流程
 
 1. **验证文件状态**：检查文件是否已在 `.wiki/.wiki-processed` 中
+   - 如果文件不存在于记录路径 → 按 hash 在全 KB 搜索
+     - 找到 → 文件被移动了，更新记录中的 path，继续处理
+     - 未找到 → 报告幽灵条目，跳过
+   - 如果文件存在 → 正常继续
 2. **比较哈希**：判断文件内容是否真正发生变化
 3. **备份旧信息**：记录将被替换的内容
 4. **重新处理**：执行完整的 ingest 流程
@@ -55,7 +59,10 @@ compatibility: opencode
 /wiki-update --all-changed
 ```
 
-比对 `.wiki/.wiki-processed` 记录的哈希值，找出所有内容有变化的文件。
+遍历 `.wiki/.wiki-processed` 所有条目，对每条：
+1. 检查文件是否存在记录路径，不存在则按 hash 搜索（自愈）
+2. 比对新旧哈希值，找出内容变化的文件
+3. 对 hash 未命中任何源文件的条目，报告为幽灵条目
 
 ### 强制更新（即使内容未变）
 
@@ -214,15 +221,20 @@ compatibility: opencode
 
 ## 特殊情况处理
 
-### 文件被删除
+### 文件被移动或删除
+
+当更新条目时文件不在记录路径：
+
+1. **自动尝试恢复**：在 `.wiki-processed` 中搜索该条目的 hash，在全 KB 文件中查找匹配
+2. **找到匹配文件** → 文件已被移动，更新 path 并继续正常更新流程
+3. **未找到匹配** → 文件已被删除，报告幽灵条目
 
 ```
-/wiki-update deleted/file.md
+/wiki-update path/to/old-file.md
 
-错误: 文件不存在
-建议:
-1. 如文件已删除，考虑运行 /wiki-prune 清理相关引用
-2. 或将文件恢复后重新运行
+警告: 记录路径 path/to/old-file.md 不存在
+正在按 hash 搜索... 找到匹配文件: path/to/new-file.md
+已更新记录路径，继续处理...
 ```
 
 ### 实体完全移除

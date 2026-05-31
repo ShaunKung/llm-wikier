@@ -223,11 +223,13 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
 
 ### 文件追踪
 
-`.wiki/.wiki-processed` 文件记录所有已处理的源文件及其哈希值：
+`.wiki/.wiki-processed` 文件记录所有已处理的源文件及内容哈希（SHA-256）。
+`hash` 是文件的稳定标识，`path` 是可变属性——当用户整理文件（移动/重命名）时，
+系统自动通过 hash 匹配新旧位置，无需重新入库。
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "entries": [
     {
       "path": "articles/foo.md",

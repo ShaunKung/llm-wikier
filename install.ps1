@@ -421,6 +421,105 @@ function New-AgentsFile {
 }
 
 # === Migration functions ===
+function Invoke-MigrateProcessedFile {
+    param([string]$TargetDir)
+
+    $ProcessedFile = Join-Path $TargetDir ".wiki\.wiki-processed"
+    if (-not (Test-Path $ProcessedFile)) { return }
+
+    $Content = Get-Content $ProcessedFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+    if (-not $Content) { return }
+
+    try {
+        $Data = $Content | ConvertFrom-Json
+    } catch {
+        Write-Warning-Message ".wiki-processed JSON 解析失败，跳过迁移"
+        return
+    }
+
+    if ($Data.version -ne 1) { return }
+
+    Write-Info-Message "检测到 .wiki-processed v1，正在迁移至 v2..."
+
+    # Backup
+    Copy-Item $ProcessedFile "$ProcessedFile.bak" -Force
+    Write-Info-Message "已备份: $ProcessedFile.bak"
+
+    # Build hash→path map and path→hash map
+    Write-Info-Message "正在扫描知识库文件..."
+    $HashMap = @{}
+    $PathMap = @{}
+    $Now = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+
+    Get-ChildItem -Path $TargetDir -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $RelPath = $_.FullName.Substring($TargetDir.Length).TrimStart('\', '/').Replace('\', '/')
+        # Skip ignored directories
+        $PathParts = $RelPath.Split('/')
+        if ($PathParts[0] -in @('.wiki', '.opencode', '.git')) { return }
+
+        try {
+            $Hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash.ToLower()
+            if ($Hash) { $HashMap[$Hash] = $RelPath; $PathMap[$RelPath] = $Hash }
+        } catch {
+            try {
+                $Hash = (Get-FileHash -Path $_.FullName -Algorithm MD5 -ErrorAction SilentlyContinue).Hash.ToLower()
+                if ($Hash) { $HashMap[$Hash] = $RelPath; $PathMap[$RelPath] = $Hash }
+            } catch {}
+        }
+    }
+
+    Write-Info-Message "扫描完成: $($HashMap.Count) 个唯一哈希"
+
+    # Process entries (use hashtables to avoid ConvertTo-Json PSCustomObject serialization bug)
+    $Kept = 0; $Recovered = 0; $Removed = 0; $Filled = 0
+    $NewEntries = @()
+
+    foreach ($Entry in $Data.entries) {
+        $Path = $Entry.path
+        $FullPath = Join-Path $TargetDir $Path
+        $Hash = $Entry.hash
+
+        # Fill missing hash from file
+        if ([string]::IsNullOrEmpty($Hash) -and (Test-Path $FullPath)) {
+            $Hash = $PathMap[$Path]
+            if (-not $Hash) {
+                try {
+                    $Hash = (Get-FileHash -Path $FullPath -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash.ToLower()
+                } catch {
+                    try {
+                        $Hash = (Get-FileHash -Path $FullPath -Algorithm MD5 -ErrorAction SilentlyContinue).Hash.ToLower()
+                    } catch {}
+                }
+            }
+            if ($Hash) { $Filled++ }
+        }
+
+        $NewEntry = @{
+            path = $Path
+            hash = $Hash
+            processed = $Entry.processed
+        }
+
+        if (Test-Path $FullPath) {
+            $Kept++
+            $NewEntries += $NewEntry
+        } elseif ($Hash -and $HashMap.ContainsKey($Hash)) {
+            $Recovered++
+            $NewEntry.path = $HashMap[$Hash]
+            $NewEntries += $NewEntry
+        } else {
+            $Removed++
+        }
+    }
+
+    $NewData = @{ version = 2; entries = $NewEntries }
+    $NewData | ConvertTo-Json -Depth 10 | Set-Content -Path $ProcessedFile -Encoding UTF8
+
+    Write-Host ""
+    Write-Success-Message "迁移完成: 保留 $Kept 条, 恢复 $Recovered 条, 移除 $Removed 条, 补填 $Filled 条"
+    Write-Info-Message "回滚方法: Copy-Item '$ProcessedFile.bak' '$ProcessedFile'"
+}
+
 function Invoke-MigrateOldStructure {
     param([string]$TargetDir)
 
@@ -566,6 +665,8 @@ function Update-Install {
     param([string]$TargetDir)
 
     Write-Host ""
+
+    Invoke-MigrateProcessedFile -TargetDir $TargetDir
 
     Invoke-MigrateOldStructure -TargetDir $TargetDir
 

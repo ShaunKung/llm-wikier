@@ -201,7 +201,7 @@ wiki-capture 仅应捕获用户个人知识域的内容（Layer 2）：
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "entries": [
     {
       "path": "articles/foo.md",
@@ -211,6 +211,9 @@ wiki-capture 仅应捕获用户个人知识域的内容（Layer 2）：
   ]
 }
 ```
+
+`hash` 是文件的稳定内容标识（SHA-256），`path` 是可变属性（文件移动时自动更新）。
+查找逻辑：先按 path 匹配，未命中则按 hash 匹配（支持移动/拷贝透明化）。
 
 ## 视觉内容处理
 
