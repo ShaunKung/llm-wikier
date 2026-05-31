@@ -455,7 +455,7 @@ function Set-HiddenAttributes {
     param([string]$TargetDir)
 
     $Dirs = @(
-        Join-Path $TargetDir ".wiki",
+        Join-Path $TargetDir ".wiki"
         Join-Path $TargetDir ".opencode"
     )
 
