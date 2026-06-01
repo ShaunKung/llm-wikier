@@ -267,7 +267,7 @@ EOF
 create_processed_file() {
     local processed_file="$TARGET_DIR/.wiki/.wiki-processed"
     
-    echo '{"version": 1, "entries": []}' > "$processed_file"
+    echo '{"version": 2, "entries": []}' > "$processed_file"
     print_success "创建处理记录文件: $processed_file"
 }
 
@@ -438,7 +438,13 @@ migrate_processed_file() {
     [[ ! -f "$processed" ]] && return 0
 
     local version
-    version=$(grep -o '"version": [[:digit:]]*' "$processed" | grep -o '[[:digit:]]*')
+    if command -v python3 &>/dev/null; then
+        version=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('version',0))" "$processed")
+    elif command -v jq &>/dev/null; then
+        version=$(jq -r '.version // 0' "$processed")
+    else
+        version=$(grep -o '"version"[[:space:]]*:[[:space:]]*[[:digit:]]*' "$processed" | grep -o '[[:digit:]]*')
+    fi
     [[ "$version" != "1" ]] && return 0
 
     print_info "检测到 .wiki-processed v1，正在迁移至 v2..."
@@ -478,6 +484,10 @@ new_entries = []
 for entry in data.get('entries', []):
     path = entry.get('path', '')
     h = entry.get('hash', '') or ''
+    # Normalize: strip sha256: prefix if present
+    h = h.lower()
+    if h.startswith('sha256:'):
+        h = h[7:]
     full = os.path.join(kb_dir, path)
     if not h and os.path.exists(full):
         # Fill missing hash from file
@@ -526,6 +536,11 @@ PYEOF
             local ep eh
             ep=$(echo "$entry" | jq -r '.path')
             eh=$(echo "$entry" | jq -r '.hash // ""')
+            # Normalize: strip sha256: prefix if present
+            eh="${eh,,}"
+            if [[ "$eh" == sha256:* ]]; then
+                eh="${eh#sha256:}"
+            fi
             if [[ -f "$target/$ep" ]]; then
                 kept_j=$((kept_j + 1))
                 if [[ -z "$eh" ]]; then
@@ -703,9 +718,9 @@ update_install() {
 
     echo ""
 
-    migrate_processed_file "$target"
-
     migrate_old_structure "$target"
+
+    migrate_processed_file "$target"
 
     echo ""
     print_info "更新安装将执行以下操作："

@@ -233,7 +233,7 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
   "entries": [
     {
       "path": "articles/foo.md",
-      "hash": "sha256:abc123...",
+      "hash": "abc123...",
       "processed": "2026-05-03T10:00:00Z"
     }
   ]

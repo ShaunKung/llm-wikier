@@ -78,8 +78,8 @@ compatibility: opencode
 
 ```
 正在检查: articles/article.md
-- 当前哈希: sha256:abc123...
-- 记录哈希: sha256:def456...
+- 当前哈希: abc123...
+- 记录哈希: def456...
 - 状态: 内容已变化 ✓
 ```
 
@@ -87,8 +87,8 @@ compatibility: opencode
 
 ```
 正在检查: notes/note.md
-- 当前哈希: sha256:xyz789...
-- 记录哈希: sha256:xyz789...
+- 当前哈希: xyz789...
+- 记录哈希: xyz789...
 - 状态: 内容未变化，跳过
 - 提示: 使用 --force 强制更新
 ```
@@ -154,7 +154,7 @@ compatibility: opencode
 ```json
 {
   "path": "articles/article.md",
-  "hash": "sha256:newhash...",
+  "hash": "newhash...",
   "processed": "2026-05-03T15:00:00Z"
 }
 ```
@@ -184,7 +184,7 @@ compatibility: opencode
 
 ```
 ✓ 已更新: articles/article.md
-  - 哈希: sha256:abc123... → sha256:def456...
+  - 哈希: abc123... → def456...
   - 新增实体: 1 个
   - 移除实体: 1 个
   - 更新概念: 1 个

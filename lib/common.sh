@@ -238,7 +238,7 @@ read_processed_file() {
     local processed_file="$kb_dir/.wiki/.wiki-processed"
     
     if [[ ! -f "$processed_file" ]]; then
-        echo '{"version": 1, "entries": []}'
+        echo '{"version": 2, "entries": []}'
         return
     fi
     
@@ -286,9 +286,9 @@ add_to_processed() {
     else
         local entries=$(echo "$processed" | sed 's/.*"entries": \[/\[/' | sed 's/\] *}.*/\]/')
         if [[ "$entries" == "[]" ]]; then
-            echo "{\"version\": 1, \"entries\": [$new_entry]}" > "$processed_file"
+            echo "{\"version\": 2, \"entries\": [$new_entry]}" > "$processed_file"
         else
-            echo "{\"version\": 1, \"entries\": $entries, $new_entry]}" > "$processed_file"
+            echo "{\"version\": 2, \"entries\": $entries, $new_entry]}" > "$processed_file"
         fi
     fi
 }

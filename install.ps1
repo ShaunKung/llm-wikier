@@ -221,7 +221,7 @@ function New-LogFile {
 function New-ProcessedFile {
     $ProcessedFile = Join-Path $TargetDir ".wiki\.wiki-processed"
     
-    '{"version": 1, "entries": []}' | Set-Content -Path $ProcessedFile -Encoding UTF8
+    '{"version": 2, "entries": []}' | Set-Content -Path $ProcessedFile -Encoding UTF8
     Write-Success-Message "创建处理记录文件: $ProcessedFile"
 }
 
@@ -478,6 +478,13 @@ function Invoke-MigrateProcessedFile {
         $Path = $Entry.path
         $FullPath = Join-Path $TargetDir $Path
         $Hash = $Entry.hash
+        # Normalize: strip sha256: prefix if present
+        if (-not [string]::IsNullOrEmpty($Hash)) {
+            $Hash = $Hash.ToLower()
+            if ($Hash.StartsWith('sha256:')) {
+                $Hash = $Hash.Substring(7)
+            }
+        }
 
         # Fill missing hash from file
         if ([string]::IsNullOrEmpty($Hash) -and (Test-Path $FullPath)) {
@@ -666,9 +673,9 @@ function Update-Install {
 
     Write-Host ""
 
-    Invoke-MigrateProcessedFile -TargetDir $TargetDir
-
     Invoke-MigrateOldStructure -TargetDir $TargetDir
+
+    Invoke-MigrateProcessedFile -TargetDir $TargetDir
 
     Write-Host ""
     Write-Info-Message "更新安装将执行以下操作："

@@ -109,7 +109,7 @@ compatibility: opencode
    ```json
    {
      "path": "relative/path/to/file.md",
-     "hash": "sha256:abc123...",
+      "hash": "abc123...",
      "processed": "2026-05-03T14:30:00Z"
    }
    ```
