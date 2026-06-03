@@ -431,6 +431,55 @@ EOF
 }
 
 # === Migration functions ===
+normalize_processed_hashes() {
+    local processed="$1"
+    local normalized=0
+
+    if command -v python3 &>/dev/null; then
+        normalized=$(python3 - "$processed" << 'PYEOF'
+import json, shutil, sys
+processed_file = sys.argv[1]
+with open(processed_file, 'r') as f:
+    data = json.load(f)
+changed = 0
+for entry in data.get('entries', []):
+    if not isinstance(entry, dict):
+        continue
+    h = entry.get('hash')
+    if not isinstance(h, str) or not h:
+        continue
+    normalized = h.lower()
+    if normalized.startswith('sha256:'):
+        normalized = normalized[7:]
+    if normalized != h:
+        entry['hash'] = normalized
+        changed += 1
+if changed:
+    shutil.copy2(processed_file, processed_file + '.hash-normalize.bak')
+    with open(processed_file, 'w') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+print(changed)
+PYEOF
+        )
+    elif command -v jq &>/dev/null; then
+        normalized=$(jq '[.entries[]? | .hash? | strings | select((ascii_downcase | sub("^sha256:"; "")) != .)] | length' "$processed")
+        if [[ "${normalized:-0}" -gt 0 ]]; then
+            local tmp
+            tmp=$(mktemp)
+            cp "$processed" "$processed.hash-normalize.bak"
+            jq '(.entries[]? | select(.hash? and (.hash | type == "string")) | .hash) |= (ascii_downcase | sub("^sha256:"; ""))' "$processed" > "$tmp" && mv "$tmp" "$processed"
+        fi
+    else
+        print_warning "需要 python3 或 jq 来归一化 .wiki-processed hash，跳过"
+        return 0
+    fi
+
+    if [[ "${normalized:-0}" -gt 0 ]]; then
+        print_success "已归一化 .wiki-processed hash: $normalized 条"
+        print_info "回滚方法: cp \"$processed.hash-normalize.bak\" \"$processed\""
+    fi
+}
+
 migrate_processed_file() {
     local target="$1"
     local processed="$target/.wiki/.wiki-processed"
@@ -444,6 +493,10 @@ migrate_processed_file() {
         version=$(jq -r '.version // 0' "$processed")
     else
         version=$(grep -o '"version"[[:space:]]*:[[:space:]]*[[:digit:]]*' "$processed" | grep -o '[[:digit:]]*')
+    fi
+    if [[ "$version" == "2" ]]; then
+        normalize_processed_hashes "$processed"
+        return 0
     fi
     [[ "$version" != "1" ]] && return 0
 
@@ -500,6 +553,8 @@ for entry in data.get('entries', []):
             entry['hash'] = h
             entry['processed'] = ts
             filled += 1
+    if h:
+        entry['hash'] = h
     if not h and not os.path.exists(full):
         removed += 1
         continue
@@ -540,6 +595,9 @@ PYEOF
             eh="${eh,,}"
             if [[ "$eh" == sha256:* ]]; then
                 eh="${eh#sha256:}"
+            fi
+            if [[ -n "$eh" ]]; then
+                entry=$(echo "$entry" | jq --arg h "$eh" '.hash = $h')
             fi
             if [[ -f "$target/$ep" ]]; then
                 kept_j=$((kept_j + 1))

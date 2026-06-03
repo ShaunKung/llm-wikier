@@ -222,7 +222,7 @@ function Read-ProcessedFile {
     $ProcessedFile = Join-Path $KbDir ".wiki\.wiki-processed"
     
     if (-not (Test-Path $ProcessedFile)) {
-        return '{"version": 1, "entries": []}'
+        return '{"version": 2, "entries": []}'
     }
     
     return Get-Content $ProcessedFile -Raw
@@ -282,7 +282,7 @@ function Add-ToProcessed {
     }
     catch {
         $NewJson = @{
-            version = 1
+            version = 2
             entries = @(
                 @{
                     path = $RelPath

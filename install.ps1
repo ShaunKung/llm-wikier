@@ -437,6 +437,31 @@ function Invoke-MigrateProcessedFile {
         return
     }
 
+    if ($Data.version -eq 2) {
+        $Normalized = 0
+        foreach ($Entry in @($Data.entries)) {
+            $Hash = $Entry.hash
+            if (-not [string]::IsNullOrEmpty($Hash)) {
+                $NewHash = $Hash.ToLower()
+                if ($NewHash.StartsWith('sha256:')) {
+                    $NewHash = $NewHash.Substring(7)
+                }
+                if ($NewHash -ne $Hash) {
+                    $Entry.hash = $NewHash
+                    $Normalized++
+                }
+            }
+        }
+
+        if ($Normalized -gt 0) {
+            Copy-Item $ProcessedFile "$ProcessedFile.hash-normalize.bak" -Force
+            $Data | ConvertTo-Json -Depth 10 | Set-Content -Path $ProcessedFile -Encoding UTF8
+            Write-Success-Message "已归一化 .wiki-processed hash: $Normalized 条"
+            Write-Info-Message "回滚方法: Copy-Item '$ProcessedFile.hash-normalize.bak' '$ProcessedFile'"
+        }
+        return
+    }
+
     if ($Data.version -ne 1) { return }
 
     Write-Info-Message "检测到 .wiki-processed v1，正在迁移至 v2..."
