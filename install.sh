@@ -12,6 +12,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+ENABLE_CLAUDE_CODE=false
+LLM_WIKIER_SKILLS=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture" "wiki-backup")
+CLAUDE_MANAGED_BEGIN="<!-- LLM-WIKIER:CLAUDE-MANAGED:BEGIN -->"
+CLAUDE_MANAGED_END="<!-- LLM-WIKIER:CLAUDE-MANAGED:END -->"
+
 print_error() {
     echo -e "${RED}[错误]${NC} $1"
 }
@@ -95,11 +100,66 @@ is_update_install() {
     [[ ! -f "$target/AGENTS.md" ]] && return 1
 
     local key_skills=("wiki-ingest" "wiki-lint" "wiki-query")
-    for skill in "${key_skills[@]}"; do
-        [[ ! -f "$target/.opencode/skills/$skill/SKILL.md" ]] && return 1
+    local skills_root
+    for skills_root in "$target/.opencode/skills" "$target/.claude/skills"; do
+        local found=true
+        for skill in "${key_skills[@]}"; do
+            if [[ ! -f "$skills_root/$skill/SKILL.md" ]]; then
+                found=false
+                break
+            fi
+        done
+        [[ "$found" == "true" ]] && return 0
     done
 
-    return 0
+    return 1
+}
+
+has_claude_code_support() {
+    local target="$1"
+
+    [[ -f "$target/.claude/skills/wiki-ingest/SKILL.md" ]] && return 0
+    if [[ -f "$target/CLAUDE.md" ]] && grep -q "$CLAUDE_MANAGED_BEGIN" "$target/CLAUDE.md"; then
+        return 0
+    fi
+
+    return 1
+}
+
+select_client_support() {
+    local target="$1"
+    local update_mode="$2"
+
+    if [[ "$FORCE" == "true" ]]; then
+        if [[ "$update_mode" == "true" ]] && has_claude_code_support "$target"; then
+            ENABLE_CLAUDE_CODE=true
+        else
+            ENABLE_CLAUDE_CODE=false
+        fi
+        return 0
+    fi
+
+    echo ""
+    if [[ "$update_mode" == "true" ]] && has_claude_code_support "$target"; then
+        if prompt_user "检测到当前知识库已支持 Claude Code，是否继续支持？"; then
+            ENABLE_CLAUDE_CODE=true
+        else
+            ENABLE_CLAUDE_CODE=false
+        fi
+    else
+        echo -e "${YELLOW}[询问]${NC} 是否需要支持除 OpenCode 之外的其它客户端？当前可选：Claude Code [y/N] "
+        read -r response
+        case "$response" in
+            [yY]|[yY][eE][sS]) ENABLE_CLAUDE_CODE=true ;;
+            *) ENABLE_CLAUDE_CODE=false ;;
+        esac
+    fi
+
+    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
+        print_info "客户端模式: OpenCode + Claude Code"
+    else
+        print_info "客户端模式: OpenCode-only"
+    fi
 }
 
 # === Prompt user ===
@@ -117,6 +177,121 @@ prompt_user() {
         [nN]|[nN][oO]) return 1 ;;
         *) return 0 ;;
     esac
+}
+
+get_active_skills_dir() {
+    local target="$1"
+
+    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
+        echo "$target/.claude/skills"
+    else
+        echo "$target/.opencode/skills"
+    fi
+}
+
+get_inactive_skills_dir() {
+    local target="$1"
+
+    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
+        echo "$target/.opencode/skills"
+    else
+        echo "$target/.claude/skills"
+    fi
+}
+
+get_backup_auto_command() {
+    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
+        echo "bash .claude/skills/wiki-backup/backup.sh --auto"
+    else
+        echo "bash .opencode/skills/wiki-backup/backup.sh --auto"
+    fi
+}
+
+get_existing_backup_root() {
+    local target="$1"
+    local file value
+    local files=(
+        "$target/.opencode/skills/wiki-backup/backup.sh"
+        "$target/.claude/skills/wiki-backup/backup.sh"
+        "$target/.opencode/skills/wiki-backup/backup.ps1"
+        "$target/.claude/skills/wiki-backup/backup.ps1"
+    )
+
+    for file in "${files[@]}"; do
+        [[ ! -f "$file" ]] && continue
+        if [[ "$file" == *.sh ]]; then
+            value=$(sed -n 's/^BACKUP_ROOT="\(.*\)"$/\1/p' "$file" | head -1)
+        else
+            value=$(sed -n 's/^\$script:BackupRoot = "\(.*\)"$/\1/p' "$file" | head -1)
+        fi
+        if [[ -n "$value" && "$value" != "__BACKUP_ROOT__" ]]; then
+            echo "$value"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+write_backup_root() {
+    local target="$1"
+    local backup_root="$2"
+    local skills_dir
+    skills_dir=$(get_active_skills_dir "$target")
+
+    local backup_sh="$skills_dir/wiki-backup/backup.sh"
+    if [[ -f "$backup_sh" ]]; then
+        replace_config_line "$backup_sh" "BACKUP_ROOT=" "BACKUP_ROOT=\"$backup_root\""
+    fi
+
+    local backup_ps1="$skills_dir/wiki-backup/backup.ps1"
+    if [[ -f "$backup_ps1" ]]; then
+        replace_config_line "$backup_ps1" '$script:BackupRoot = ' "\$script:BackupRoot = \"$backup_root\""
+    fi
+}
+
+replace_config_line() {
+    local file="$1"
+    local prefix="$2"
+    local replacement="$3"
+    local tmp
+    tmp=$(mktemp) || true
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" == "$prefix"* ]]; then
+            printf '%s\n' "$replacement"
+        else
+            printf '%s\n' "$line"
+        fi
+    done < "$file" > "$tmp"
+
+    mv "$tmp" "$file"
+}
+
+render_agents_template() {
+    local input_file="$1"
+    local output_file="$2"
+    local backup_command
+    backup_command=$(get_backup_auto_command)
+
+    sed "s|__WIKI_BACKUP_AUTO_COMMAND__|$backup_command|g" "$input_file" > "$output_file"
+}
+
+remove_managed_skills_from_dir() {
+    local skills_dir="$1"
+
+    [[ ! -d "$skills_dir" ]] && return 0
+
+    local skill
+    for skill in "${LLM_WIKIER_SKILLS[@]}"; do
+        if [[ -d "$skills_dir/$skill" ]]; then
+            rm -rf "$skills_dir/$skill"
+            print_info "已移除旧 skill: $skills_dir/$skill"
+        fi
+    done
+
+    rmdir "$skills_dir" 2>/dev/null || true
+    rmdir "$(dirname "$skills_dir")" 2>/dev/null || true
 }
 
 # === Section extraction ===
@@ -202,8 +377,12 @@ check_existing_installation() {
     local old_wiki_dir="$TARGET_DIR/wiki"
     local agents_file="$TARGET_DIR/AGENTS.md"
     local skills_dir="$TARGET_DIR/.opencode/skills"
+    local claude_managed=false
+    if has_claude_code_support "$TARGET_DIR"; then
+        claude_managed=true
+    fi
     
-    if [[ -d "$wiki_dir" || -d "$old_wiki_dir" || -f "$agents_file" || -d "$skills_dir" ]]; then
+    if [[ -d "$wiki_dir" || -d "$old_wiki_dir" || -f "$agents_file" || -d "$skills_dir" || "$claude_managed" == "true" ]]; then
         if [[ "$FORCE" == "true" ]]; then
             print_warning "检测到已有安装，将强制覆盖"
         else
@@ -273,13 +452,15 @@ create_processed_file() {
 
 create_wiki_ignore_file() {
     local ignore_file="$TARGET_DIR/.wiki_ignore"
-    
-    cat > "$ignore_file" << 'EOF'
+
+    cat > "$ignore_file" << EOF
 # LLM Wikier — 默认排除规则（由工具包管理，请勿修改此区域）
 .opencode/
+$(if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then echo ".claude/"; fi)
 .wiki/
 .git/
 AGENTS.md
+$(if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then echo "CLAUDE.md"; fi)
 output/
 
 # ——— 用户自定义规则（添加在此区域下方） ———
@@ -301,13 +482,14 @@ create_output_directory() {
 }
 
 create_skills_directory() {
-    local skills_dir="$TARGET_DIR/.opencode/skills"
+    local skills_dir
+    skills_dir=$(get_active_skills_dir "$TARGET_DIR")
+    local inactive_skills_dir
+    inactive_skills_dir=$(get_inactive_skills_dir "$TARGET_DIR")
     
     mkdir -p "$skills_dir"
-    
-    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture" "wiki-backup")
-    
-    for skill in "${skills[@]}"; do
+
+    for skill in "${LLM_WIKIER_SKILLS[@]}"; do
         local src_dir="$SKILLS_SOURCE/$skill"
         local dst_dir="$skills_dir/$skill"
         
@@ -319,6 +501,8 @@ create_skills_directory() {
             print_warning "找不到 skill 源文件: $skill"
         fi
     done
+
+    remove_managed_skills_from_dir "$inactive_skills_dir"
 }
 
 create_agents_file() {
@@ -326,7 +510,7 @@ create_agents_file() {
     local template_file="$TEMPLATES_SOURCE/AGENTS.md.tmpl"
     
     if [[ -f "$template_file" ]]; then
-        cp "$template_file" "$agents_file"
+        render_agents_template "$template_file" "$agents_file"
         print_success "创建 AGENTS.md: $agents_file"
     else
         print_warning "找不到 AGENTS.md 模板，创建默认文件"
@@ -375,16 +559,16 @@ create_agents_file() {
 ### 处理流程
 
 **纯图片文件**（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`）：
-- 使用 Task 工具调用 `vision-reader` subagent 读取
+- 调用 `vision-reader` subagent 读取（OpenCode 通常使用 Task 工具；Claude Code 使用 Agent/subagent 调用）
 
 **办公文档 & 网页**（`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`, `.html`）：
 - 两段式：Read 取文本 + vision-reader 取视觉元素
 
 **Markdown**：文本优先，按需读取图片
 
-如未配置 `vision-reader`（`.opencode/agents/vision-reader.md` 不存在），Agent 跳过视觉处理。
+如当前客户端未配置 `vision-reader`，Agent 跳过视觉处理。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
 
-配置方式：`./config_vision_reader.sh <知识库路径>`
+OpenCode 配置方式：`./config_vision_reader.sh <知识库路径>`。启用 Claude Code 支持时，安装器会生成 Claude Code 版 `vision-reader`。
 
 ## 文件排除规则
 
@@ -393,9 +577,11 @@ create_agents_file() {
 
 ### 默认排除项
 - `.opencode/` — skills 配置目录
+- `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
 - `.wiki/` — wiki 内容本身
 - `.git/` — 版本控制
 - `AGENTS.md` — 知识库配置文件
+- `CLAUDE.md` — Claude Code 入口文件（仅启用 Claude Code 支持时）
 - `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
 
 ### 用户自定义
@@ -418,6 +604,16 @@ create_agents_file() {
 - 定期运行 `/wiki-lint` 检查 wiki 健康状态
 - 重要的查询答案可以作为新页面沉淀
 
+## 自动备份
+
+每次新会话开始时，Agent 应以自动模式静默执行一次备份：
+
+    __WIKI_BACKUP_AUTO_COMMAND__
+
+- 不向用户显示执行过程和结果
+- 同一会话内仅执行一次（自动模式的日级去重机制已覆盖此要求）
+- 如脚本不存在，静默跳过
+
 ## 用户偏好
 
 <!-- 用户可以在此添加个人偏好 -->
@@ -426,7 +622,130 @@ create_agents_file() {
 
 <!-- 用户可以在此添加自定义配置 -->
 EOF
+        local rendered_agents
+        rendered_agents=$(mktemp) || true
+        render_agents_template "$agents_file" "$rendered_agents"
+        mv "$rendered_agents" "$agents_file"
         print_success "创建默认 AGENTS.md: $agents_file"
+    fi
+}
+
+write_claude_file() {
+    local claude_file="$TARGET_DIR/CLAUDE.md"
+    local tmp_existing
+    tmp_existing=$(mktemp) || true
+    local tmp_new
+    tmp_new=$(mktemp) || true
+
+    if [[ -f "$claude_file" ]]; then
+        sed "/$CLAUDE_MANAGED_BEGIN/,/$CLAUDE_MANAGED_END/d" "$claude_file" > "$tmp_existing"
+    else
+        : > "$tmp_existing"
+    fi
+
+    cat > "$tmp_new" << EOF
+$CLAUDE_MANAGED_BEGIN
+@AGENTS.md
+
+## Claude Code
+
+本知识库已启用 Claude Code 支持。LLM Wikier 的 Agent Skills 安装在 \`.claude/skills/\`，OpenCode 也会通过兼容路径读取同一份 skills。
+$CLAUDE_MANAGED_END
+EOF
+
+    if grep -q '[^[:space:]]' "$tmp_existing"; then
+        cat "$tmp_existing" > "$claude_file"
+        printf '\n' >> "$claude_file"
+        cat "$tmp_new" >> "$claude_file"
+    else
+        cat "$tmp_new" > "$claude_file"
+    fi
+
+    rm -f "$tmp_existing" "$tmp_new"
+    print_success "已配置 Claude Code 入口: $claude_file"
+}
+
+remove_claude_file_managed_block() {
+    local claude_file="$TARGET_DIR/CLAUDE.md"
+    [[ ! -f "$claude_file" ]] && return 0
+    if ! grep -q "$CLAUDE_MANAGED_BEGIN" "$claude_file"; then
+        print_info "保留用户自定义 CLAUDE.md"
+        return 0
+    fi
+
+    local tmp
+    tmp=$(mktemp) || true
+    sed "/$CLAUDE_MANAGED_BEGIN/,/$CLAUDE_MANAGED_END/d" "$claude_file" > "$tmp"
+    if grep -q '[^[:space:]]' "$tmp"; then
+        mv "$tmp" "$claude_file"
+        print_success "已移除 CLAUDE.md 中的 LLM Wikier 托管区块"
+    else
+        rm -f "$tmp" "$claude_file"
+        print_success "已移除 LLM Wikier 托管的 CLAUDE.md"
+    fi
+}
+
+write_claude_vision_reader() {
+    local agent_dir="$TARGET_DIR/.claude/agents"
+    local agent_file="$agent_dir/vision-reader.md"
+
+    if [[ -f "$agent_file" ]] && ! grep -q "LLM-WIKIER:CLAUDE-AGENT-MANAGED" "$agent_file"; then
+        print_info "保留用户自定义 Claude Code vision-reader: $agent_file"
+        return 0
+    fi
+
+    mkdir -p "$agent_dir"
+    cat > "$agent_file" << 'EOF'
+---
+name: vision-reader
+description: 读取图片、图表、截图、幻灯片、PDF 和文档排版等视觉元素，转化为文字描述
+model: inherit
+tools:
+  - Read
+---
+<!-- LLM-WIKIER:CLAUDE-AGENT-MANAGED -->
+你是一个视觉内容读取器。你的职责是读取文件中的视觉元素（图片、图表、截图、幻灯片、页面排版等），并将视觉内容转化为文字描述。
+
+## 核心职责
+- 只描述视觉元素（图片、图表、照片、插图、截图、幻灯片视觉内容、排版布局等）
+- 不要重复已经由主 agent 处理的纯文本内容
+- **兜底规则**：如果发现文档中文本提取明显不完整（如幻灯片缺失文字、表格数据丢失、图表中的数据标签等），请一并补充关键文本信息
+
+## 输出格式
+对每个视觉元素：
+
+```
+### [图片/图表/截图 序号]
+**类型**: [图表/照片/截图/插图/排版]
+**描述**: [视觉内容的文字描述]
+**关键信息**: [图表数据、照片中的人物/场景、截图中的UI元素、幻灯片主题等]
+```
+
+主 agent 会通过文件路径告知你需要读取的文件，请直接读取并返回描述。
+EOF
+    print_success "已配置 Claude Code vision-reader: $agent_file"
+}
+
+remove_claude_vision_reader() {
+    local agent_file="$TARGET_DIR/.claude/agents/vision-reader.md"
+    [[ ! -f "$agent_file" ]] && return 0
+    if grep -q "LLM-WIKIER:CLAUDE-AGENT-MANAGED" "$agent_file"; then
+        rm -f "$agent_file"
+        rmdir "$TARGET_DIR/.claude/agents" 2>/dev/null || true
+        rmdir "$TARGET_DIR/.claude" 2>/dev/null || true
+        print_success "已移除 LLM Wikier 托管的 Claude Code vision-reader"
+    else
+        print_info "保留用户自定义 Claude Code vision-reader"
+    fi
+}
+
+sync_claude_support_files() {
+    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
+        write_claude_file
+        write_claude_vision_reader
+    else
+        remove_claude_file_managed_block
+        remove_claude_vision_reader
     fi
 }
 
@@ -519,7 +838,7 @@ hash_map = {}
 path_map = {}
 for root, dirs, files in os.walk(kb_dir):
     rel_root = os.path.relpath(root, kb_dir)
-    if any(rel_root == d or rel_root.startswith(d + os.sep) for d in ['.wiki', '.opencode', '.git']):
+    if any(rel_root == d or rel_root.startswith(d + os.sep) for d in ['.wiki', '.opencode', '.claude', '.git']):
         continue
     for fname in files:
         fpath = os.path.join(root, fname)
@@ -683,14 +1002,18 @@ merge_wiki_ignore() {
 
 update_skills() {
     local target="$1"
-    local skills_dir="$target/.opencode/skills"
+    local skills_dir
+    skills_dir=$(get_active_skills_dir "$target")
+    local inactive_skills_dir
+    inactive_skills_dir=$(get_inactive_skills_dir "$target")
+    local existing_backup_root
+    existing_backup_root=$(get_existing_backup_root "$target" || true)
 
     mkdir -p "$skills_dir"
 
-    local skills=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture" "wiki-backup")
     local updated=0
 
-    for skill in "${skills[@]}"; do
+    for skill in "${LLM_WIKIER_SKILLS[@]}"; do
         local src="$SKILLS_SOURCE/$skill"
         local dst="$skills_dir/$skill"
 
@@ -707,6 +1030,13 @@ update_skills() {
     if [[ $updated -gt 0 ]]; then
         print_info "共更新 $updated 个 skill"
     fi
+
+    remove_managed_skills_from_dir "$inactive_skills_dir"
+
+    if [[ -n "$existing_backup_root" ]]; then
+        write_backup_root "$target" "$existing_backup_root"
+        print_info "已保留既有备份根目录: $existing_backup_root"
+    fi
 }
 
 update_agents_file() {
@@ -715,7 +1045,11 @@ update_agents_file() {
     local template_file="$TEMPLATES_SOURCE/AGENTS.md.tmpl"
 
     if [[ -f "$template_file" ]]; then
-        merge_agents_file "$agents_file" "$template_file" "$agents_file"
+        local rendered_template
+        rendered_template=$(mktemp) || true
+        render_agents_template "$template_file" "$rendered_template"
+        merge_agents_file "$agents_file" "$rendered_template" "$agents_file"
+        rm -f "$rendered_template"
     else
         print_warning "找不到 AGENTS.md 模板，使用内置默认内容"
         local default_template
@@ -750,13 +1084,25 @@ update_agents_file() {
 
 ### 默认排除项
 - `.opencode/` — skills 配置目录
+- `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
 - `.wiki/` — wiki 内容本身
 - `.git/` — 版本控制
 - `AGENTS.md` — 知识库配置文件
+- `CLAUDE.md` — Claude Code 入口文件（仅启用 Claude Code 支持时）
 - `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
 
 ### 对技能的影响
 所有扫描 raw sources 的技能在扫描文件前必须读取 `.wiki_ignore` 并按规则排除。
+
+## 自动备份
+
+每次新会话开始时，Agent 应以自动模式静默执行一次备份：
+
+    __WIKI_BACKUP_AUTO_COMMAND__
+
+- 不向用户显示执行过程和结果
+- 同一会话内仅执行一次（自动模式的日级去重机制已覆盖此要求）
+- 如脚本不存在，静默跳过
 
 ## 用户偏好
 
@@ -766,7 +1112,11 @@ update_agents_file() {
 
 <!-- 用户可以在此添加自定义配置 -->
 EOF
-        merge_agents_file "$agents_file" "$default_template" "$agents_file"
+        local rendered_template
+        rendered_template=$(mktemp) || true
+        render_agents_template "$default_template" "$rendered_template"
+        merge_agents_file "$agents_file" "$rendered_template" "$agents_file"
+        rm -f "$rendered_template"
         rm -f "$default_template"
     fi
 }
@@ -780,33 +1130,55 @@ update_install() {
 
     migrate_processed_file "$target"
 
+    local had_claude=false
+    if has_claude_code_support "$target"; then
+        had_claude=true
+    fi
+
+    select_client_support "$target" true
+
+    local mode_changed=false
+    if [[ "$had_claude" != "$ENABLE_CLAUDE_CODE" ]]; then
+        mode_changed=true
+    fi
+
     echo ""
     print_info "更新安装将执行以下操作："
     print_info "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     print_info "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
     print_info "  (3) 更新 .wiki_ignore — 从模板更新，保留用户自定义规则"
-    print_info "  (4) 配置备份根目录"
+    print_info "  (4) 同步客户端配置 — 根据选择创建或移除 Claude Code 托管文件"
+    print_info "  (5) 配置备份根目录"
     echo ""
 
-    if prompt_user "Step (1/4): 是否更新 skills？（将覆盖现有 skill 文件）"; then
+    if [[ "$mode_changed" == "true" ]]; then
+        print_info "客户端模式已变化，自动同步 skills 目录"
+        update_skills "$target"
+    elif prompt_user "Step (1/5): 是否更新 skills？（将覆盖现有 skill 文件）"; then
         update_skills "$target"
     else
         print_info "已跳过更新 skills"
     fi
 
-    if prompt_user "Step (2/4): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）"; then
+    if [[ "$mode_changed" == "true" ]]; then
+        print_info "客户端模式已变化，自动更新 AGENTS.md 以修正备份路径"
+        update_agents_file "$target"
+    elif prompt_user "Step (2/5): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）"; then
         update_agents_file "$target"
     else
         print_info "已跳过更新 AGENTS.md"
     fi
 
-    if prompt_user "Step (3/4): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）"; then
+    if prompt_user "Step (3/5): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）"; then
         merge_wiki_ignore "$target"
     else
         print_info "已跳过更新 .wiki_ignore"
     fi
 
-    if prompt_user "Step (4/4): 是否修改备份根目录？"; then
+    print_info "Step (4/5): 同步客户端配置"
+    sync_claude_support_files
+
+    if prompt_user "Step (5/5): 是否修改备份根目录？"; then
         configure_backup "$target"
     else
         print_info "已跳过备份配置"
@@ -831,6 +1203,10 @@ print_completion_message() {
     echo ""
     echo "2. 启动 OpenCode："
     echo "   opencode"
+    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
+        echo "   或启动 Claude Code："
+        echo "   claude"
+    fi
     echo ""
     echo "3. 如果知识库已有文件，运行批量初始化："
     echo "   /wiki-init"
@@ -843,9 +1219,11 @@ print_completion_message() {
 
 configure_backup() {
     local target="$1"
+    local skills_dir
+    skills_dir=$(get_active_skills_dir "$target")
 
     if [[ "$FORCE" == "true" ]]; then
-        local backup_script="$target/.opencode/skills/wiki-backup/backup.sh"
+        local backup_script="$skills_dir/wiki-backup/backup.sh"
         if [[ -f "$backup_script" && "$(grep -c 'BACKUP_ROOT=' "$backup_script")" -gt 0 ]]; then
             print_info "强制安装模式，保留现有备份配置"
         else
@@ -866,27 +1244,17 @@ configure_backup() {
     # Normalize path: expand ~
     backup_root="${backup_root/#\~/$HOME}"
 
-    # Write into backup.sh
-    local backup_sh="$target/.opencode/skills/wiki-backup/backup.sh"
+    write_backup_root "$target" "$backup_root"
+
+    local backup_sh="$skills_dir/wiki-backup/backup.sh"
     if [[ -f "$backup_sh" ]]; then
-        if [[ "$(uname)" == "Darwin" ]]; then
-            sed -i '' "s|^BACKUP_ROOT=.*|BACKUP_ROOT=\"$backup_root\"|" "$backup_sh"
-        else
-            sed -i "s|^BACKUP_ROOT=.*|BACKUP_ROOT=\"$backup_root\"|" "$backup_sh"
-        fi
         print_success "已配置备份根目录: $backup_root"
     else
         print_warning "找不到 backup.sh，跳过备份配置"
     fi
 
-    # Write into backup.ps1
-    local backup_ps1="$target/.opencode/skills/wiki-backup/backup.ps1"
+    local backup_ps1="$skills_dir/wiki-backup/backup.ps1"
     if [[ -f "$backup_ps1" ]]; then
-        if [[ "$(uname)" == "Darwin" ]]; then
-            sed -i '' "s|^\\$script:BackupRoot =.*|\\$script:BackupRoot = \"$backup_root\"|" "$backup_ps1"
-        else
-            sed -i "s|^\\$script:BackupRoot =.*|\\$script:BackupRoot = \"$backup_root\"|" "$backup_ps1"
-        fi
         print_success "已配置 backup.ps1 备份根目录"
     fi
 }
@@ -927,6 +1295,8 @@ main() {
     else
         check_existing_installation
 
+        select_client_support "$TARGET_DIR" false
+
         print_info "开始安装 LLM Wikier..."
 
         create_wiki_directory
@@ -937,6 +1307,7 @@ main() {
         create_output_directory
         create_skills_directory
         create_agents_file
+        sync_claude_support_files
 
         configure_backup "$TARGET_DIR"
 

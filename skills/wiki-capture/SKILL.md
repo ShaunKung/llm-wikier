@@ -2,7 +2,7 @@
 name: wiki-capture
 description: 从对话中主动抓取用户提供的新知识，检测与现有 wiki 内容的冲突并邀请用户裁决
 license: MIT
-compatibility: opencode
+compatibility: opencode, claude-code
 ---
 
 ## 功能说明
@@ -15,7 +15,7 @@ compatibility: opencode
 
 | 层级 | 定义 | 示例 | 可捕获? |
 |------|------|------|---------|
-| Layer 0 | 来自 `.opencode/skills/` 的 SKILL.md 定义、脚本等基础设施内容 | wiki-ingest 的功能说明 | ❌ |
+| Layer 0 | 来自 `.opencode/skills/` 或 `.claude/skills/` 的 SKILL.md 定义、脚本等基础设施内容 | wiki-ingest 的功能说明 | ❌ |
 | Layer 1 | Agent 对系统功能、规则、技能或配置的解释性输出 | "我来解释 wiki-capture 的冲突检测逻辑" | ❌ |
 | Layer 2 | 用户个人知识域的真实陈述——事实、观点、决定、纠正 | "React 19 于 2025 年发布" | ✅ |
 
@@ -36,7 +36,7 @@ Agent 应在对话中出现以下信号时自动触发本流程（宽松捕获�
 - 用户要求汇总已有信息
 - 用户要求删除或清理内容（使用 `/wiki-prune`）
 - 任何其他 wiki skill（ingest / update / init / lint / prune / backup / query）正在执行中（含其说明性输出）
-- 对话内容来自 `.opencode/skills/` 下的 SKILL.md 定义（包括本 skill 自身——自排除原则）
+- 对话内容来自 `.opencode/skills/` 或 `.claude/skills/` 下的 SKILL.md 定义（包括本 skill 自身——自排除原则）
 - Agent 正在解释系统功能、规则或技能的工作方式（即 Layer 1 内容）
 - 内容涉及知识库工具本身的安装、配置或维护流程
 

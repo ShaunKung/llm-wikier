@@ -65,12 +65,12 @@
 ### 处理流程
 
 **纯图片文件**（始终委托）：
-1. 使用 Task 工具调用 `vision-reader` subagent 读取
+1. 调用 `vision-reader` subagent 读取（OpenCode 通常使用 Task 工具；Claude Code 使用 Agent/subagent 调用）
 2. 基于返回的文字描述进行知识提取
 
 **办公文档 & 网页**（两段式）：
 1. 使用 Read 工具直接读取，获取文本内容
-2. 使用 Task 工具调用 `vision-reader` subagent 读取视觉元素
+2. 调用 `vision-reader` subagent 读取视觉元素
 3. 合并两段结果进行知识提取
 
 **Markdown**（文本优先）：
@@ -79,9 +79,9 @@
 
 ### vision-reader 配置
 
-如未配置 `vision-reader`（即 `.opencode/agents/vision-reader.md` 不存在），Agent 应跳过视觉处理，仅处理文本内容。
+如当前客户端未配置 `vision-reader`，Agent 应跳过视觉处理，仅处理文本内容。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
 
-配置方式：使用 LLM Wikier 提供的 `config_vision_reader` 脚本，或在 `.opencode/agents/` 下手动创建 `vision-reader.md`。
+配置方式：使用 LLM Wikier 提供的 `config_vision_reader` 脚本配置 OpenCode subagent；启用 Claude Code 支持时安装器会生成 Claude Code 版 `vision-reader`。
 
 ## 文件排除规则
 
@@ -90,9 +90,11 @@
 
 ### 默认排除项
 - `.opencode/` — skills 配置目录
+- `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
 - `.wiki/` — wiki 内容本身
 - `.git/` — 版本控制
 - `AGENTS.md` — 知识库配置文件
+- `CLAUDE.md` — Claude Code 入口文件（仅启用 Claude Code 支持时）
 - `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
 
 ### 用户自定义
@@ -118,7 +120,7 @@ Agent 应在所有对话中主动感知用户提供的新知识，无需等待�
 - **冲突必问**：如新知识与 wiki 已有内容冲突，必须暂停并请用户裁决
 - **不重复捕获**：同一会话中已提议过的内容不再重复提议
 - **安静失败**：如用户忽略或拒绝，不反复追问
-- **基础设施内容除外**：来自 `.opencode/skills/` 的 SKILL.md 定义、Agent 对系统功能的解释性输出等基础设施/元内容不属于捕获对象
+- **基础设施内容除外**：来自 `.opencode/skills/` 或 `.claude/skills/` 的 SKILL.md 定义、Agent 对系统功能的解释性输出等基础设施/元内容不属于捕获对象
 
 ### 内容域边界
 
@@ -127,7 +129,7 @@ wiki-capture 仅应捕获用户个人知识域的内容（Layer 2）：
 - 用户提供的实体或概念信息
 
 以下内容不应被视为捕获对象：
-- 来自 `.opencode/skills/` 的 SKILL.md 定义
+- 来自 `.opencode/skills/` 或 `.claude/skills/` 的 SKILL.md 定义
 - Agent 对知识库功能或流程的解释
 - 任何关于知识库工具本身的话题（安装、配置、维护）
 
@@ -281,7 +283,7 @@ wiki-capture 仅应捕获用户个人知识域的内容（Layer 2）：
 
 每次新会话开始时，Agent 应以自动模式静默执行一次备份：
 
-    bash .opencode/skills/wiki-backup/backup.sh --auto
+    __WIKI_BACKUP_AUTO_COMMAND__
 
 - 不向用户显示执行过程和结果
 - 同一会话内仅执行一次（自动模式的日级去重机制已覆盖此要求）

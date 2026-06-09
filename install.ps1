@@ -12,6 +12,11 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SkillsSource = Join-Path $ScriptDir "skills"
 $TemplatesSource = Join-Path $ScriptDir "templates"
 
+$script:EnableClaudeCode = $false
+$script:LlmWikierSkills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture", "wiki-backup")
+$script:ClaudeManagedBegin = "<!-- LLM-WIKIER:CLAUDE-MANAGED:BEGIN -->"
+$script:ClaudeManagedEnd = "<!-- LLM-WIKIER:CLAUDE-MANAGED:END -->"
+
 function Write-Error-Message {
     param([string]$Message)
     Write-Host "[错误] " -ForegroundColor Red -NoNewline
@@ -60,12 +65,39 @@ function Test-UpdateInstall {
     if (-not (Test-Path $AgentsFile)) { return $false }
 
     $KeySkills = @("wiki-ingest", "wiki-lint", "wiki-query")
-    foreach ($Skill in $KeySkills) {
-        $SkillFile = Join-Path $TargetDir ".opencode\skills\$Skill\SKILL.md"
-        if (-not (Test-Path $SkillFile)) { return $false }
+    $SkillRoots = @(
+        (Join-Path $TargetDir ".opencode\skills"),
+        (Join-Path $TargetDir ".claude\skills")
+    )
+
+    foreach ($SkillRoot in $SkillRoots) {
+        $Found = $true
+        foreach ($Skill in $KeySkills) {
+            $SkillFile = Join-Path $SkillRoot "$Skill\SKILL.md"
+            if (-not (Test-Path $SkillFile)) {
+                $Found = $false
+                break
+            }
+        }
+        if ($Found) { return $true }
     }
 
-    return $true
+    return $false
+}
+
+function Test-ClaudeCodeSupport {
+    param([string]$TargetDir)
+
+    $ClaudeSkill = Join-Path $TargetDir ".claude\skills\wiki-ingest\SKILL.md"
+    if (Test-Path $ClaudeSkill) { return $true }
+
+    $ClaudeFile = Join-Path $TargetDir "CLAUDE.md"
+    if (Test-Path $ClaudeFile) {
+        $Content = Get-Content $ClaudeFile -Raw -ErrorAction SilentlyContinue
+        if ($Content -and $Content.Contains($script:ClaudeManagedBegin)) { return $true }
+    }
+
+    return $false
 }
 
 function Invoke-PromptUser {
@@ -78,6 +110,144 @@ function Invoke-PromptUser {
     $Response = Read-Host
 
     return ($Response -notmatch '^[nN](o|O)?$')
+}
+
+function Select-ClientSupport {
+    param([string]$TargetDir, [bool]$IsUpdate)
+
+    if ($Force) {
+        $script:EnableClaudeCode = ($IsUpdate -and (Test-ClaudeCodeSupport -TargetDir $TargetDir))
+        return
+    }
+
+    Write-Host ""
+    if ($IsUpdate -and (Test-ClaudeCodeSupport -TargetDir $TargetDir)) {
+        if (Invoke-PromptUser "检测到当前知识库已支持 Claude Code，是否继续支持？") {
+            $script:EnableClaudeCode = $true
+        } else {
+            $script:EnableClaudeCode = $false
+        }
+    } else {
+        Write-Host "[询问] " -ForegroundColor Yellow -NoNewline
+        Write-Host "是否需要支持除 OpenCode 之外的其它客户端？当前可选：Claude Code [y/N] " -NoNewline
+        $Response = Read-Host
+        $script:EnableClaudeCode = ($Response -match '^[yY](es|ES)?$')
+    }
+
+    if ($script:EnableClaudeCode) {
+        Write-Info-Message "客户端模式: OpenCode + Claude Code"
+    } else {
+        Write-Info-Message "客户端模式: OpenCode-only"
+    }
+}
+
+function Get-ActiveSkillsDir {
+    param([string]$TargetDir)
+    if ($script:EnableClaudeCode) {
+        return (Join-Path $TargetDir ".claude\skills")
+    }
+    return (Join-Path $TargetDir ".opencode\skills")
+}
+
+function Get-InactiveSkillsDir {
+    param([string]$TargetDir)
+    if ($script:EnableClaudeCode) {
+        return (Join-Path $TargetDir ".opencode\skills")
+    }
+    return (Join-Path $TargetDir ".claude\skills")
+}
+
+function Get-BackupAutoCommand {
+    if ($script:EnableClaudeCode) {
+        return "powershell -NoProfile -ExecutionPolicy Bypass -File .claude\skills\wiki-backup\backup.ps1 -Auto"
+    }
+    return "powershell -NoProfile -ExecutionPolicy Bypass -File .opencode\skills\wiki-backup\backup.ps1 -Auto"
+}
+
+function Get-ExistingBackupRoot {
+    param([string]$TargetDir)
+
+    $Candidates = @(
+        (Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.ps1"),
+        (Join-Path $TargetDir ".claude\skills\wiki-backup\backup.ps1"),
+        (Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.sh"),
+        (Join-Path $TargetDir ".claude\skills\wiki-backup\backup.sh")
+    )
+
+    foreach ($File in $Candidates) {
+        if (-not (Test-Path $File)) { continue }
+        $Lines = Get-Content $File -ErrorAction SilentlyContinue
+        foreach ($Line in $Lines) {
+            $Value = $null
+            if ($Line -match '^\$script:BackupRoot = "(.*)"$') {
+                $Value = $matches[1]
+            } elseif ($Line -match '^BACKUP_ROOT="(.*)"$') {
+                $Value = $matches[1]
+            }
+            if (-not [string]::IsNullOrWhiteSpace($Value) -and $Value -ne "__BACKUP_ROOT__") {
+                return $Value
+            }
+        }
+    }
+
+    return $null
+}
+
+function Set-BackupRootInScripts {
+    param([string]$TargetDir, [string]$BackupRoot)
+
+    $SkillsDir = Get-ActiveSkillsDir -TargetDir $TargetDir
+
+    $BackupPs1 = Join-Path $SkillsDir "wiki-backup\backup.ps1"
+    if (Test-Path $BackupPs1) {
+        $Lines = Get-Content $BackupPs1
+        $Lines = $Lines | ForEach-Object {
+            if ($_ -match '^\$script:BackupRoot = ') {
+                '$script:BackupRoot = "' + $BackupRoot + '"'
+            } else {
+                $_
+            }
+        }
+        Set-Content -Path $BackupPs1 -Value $Lines -Encoding UTF8
+    }
+
+    $BackupSh = Join-Path $SkillsDir "wiki-backup\backup.sh"
+    if (Test-Path $BackupSh) {
+        $BackupRootForSh = $BackupRoot.Replace('\', '/')
+        $Lines = Get-Content $BackupSh
+        $Lines = $Lines | ForEach-Object {
+            if ($_ -match '^BACKUP_ROOT=') {
+                'BACKUP_ROOT="' + $BackupRootForSh + '"'
+            } else {
+                $_
+            }
+        }
+        Set-Content -Path $BackupSh -Value $Lines -Encoding UTF8
+    }
+}
+
+function Write-RenderedAgentsTemplate {
+    param([string]$InputFile, [string]$OutputFile)
+    $Content = Get-Content $InputFile -Raw -ErrorAction Stop
+    $Content = $Content.Replace("__WIKI_BACKUP_AUTO_COMMAND__", (Get-BackupAutoCommand))
+    Set-Content -Path $OutputFile -Value $Content -Encoding UTF8
+}
+
+function Remove-ManagedSkillsFromDir {
+    param([string]$SkillsDir)
+    if (-not (Test-Path $SkillsDir)) { return }
+
+    foreach ($Skill in $script:LlmWikierSkills) {
+        $SkillDir = Join-Path $SkillsDir $Skill
+        if (Test-Path $SkillDir) {
+            Remove-Item $SkillDir -Recurse -Force
+            Write-Info-Message "已移除旧 skill: $SkillDir"
+        }
+    }
+
+    if ((Test-Path $SkillsDir) -and -not (Get-ChildItem $SkillsDir -Force)) { Remove-Item $SkillsDir -Force }
+    $ParentDir = Split-Path -Parent $SkillsDir
+    if ((Test-Path $ParentDir) -and -not (Get-ChildItem $ParentDir -Force)) { Remove-Item $ParentDir -Force }
 }
 
 function Get-AgentsSection {
@@ -155,8 +325,9 @@ function Test-ExistingInstallation {
     $OldWikiDir = Join-Path $TargetDir "wiki"
     $AgentsFile = Join-Path $TargetDir "AGENTS.md"
     $SkillsDir = Join-Path $TargetDir ".opencode\skills"
+    $ClaudeManaged = Test-ClaudeCodeSupport -TargetDir $TargetDir
     
-    if ((Test-Path $WikiDir) -or (Test-Path $OldWikiDir) -or (Test-Path $AgentsFile) -or (Test-Path $SkillsDir)) {
+    if ((Test-Path $WikiDir) -or (Test-Path $OldWikiDir) -or (Test-Path $AgentsFile) -or (Test-Path $SkillsDir) -or $ClaudeManaged) {
         if ($Force) {
             Write-Warning-Message "检测到已有安装，将强制覆盖"
         } else {
@@ -227,17 +398,20 @@ function New-ProcessedFile {
 
 function New-WikiIgnoreFile {
     $IgnoreFile = Join-Path $TargetDir ".wiki_ignore"
-    
-    $Content = @'
-# LLM Wikier — 默认排除规则（由工具包管理，请勿修改此区域）
-.opencode/
-.wiki/
-.git/
-AGENTS.md
-output/
 
-# ——— 用户自定义规则（添加在此区域下方） ———
-'@
+    $DefaultRules = @(".opencode/")
+    if ($script:EnableClaudeCode) {
+        $DefaultRules += ".claude/"
+    }
+    $DefaultRules += @(".wiki/", ".git/", "AGENTS.md")
+    if ($script:EnableClaudeCode) {
+        $DefaultRules += "CLAUDE.md"
+    }
+    $DefaultRules += "output/"
+
+    $Content = "# LLM Wikier — 默认排除规则（由工具包管理，请勿修改此区域）`n"
+    $Content += ($DefaultRules -join "`n")
+    $Content += "`n`n# ——— 用户自定义规则（添加在此区域下方） ———"
     
     Set-Content -Path $IgnoreFile -Value $Content -Encoding UTF8
     Write-Success-Message "创建 .wiki_ignore: $IgnoreFile"
@@ -289,12 +463,12 @@ function Merge-WikiIgnore {
 }
 
 function New-SkillsDirectory {
-    $SkillsDir = Join-Path $TargetDir ".opencode\skills"
+    $SkillsDir = Get-ActiveSkillsDir -TargetDir $TargetDir
+    $InactiveSkillsDir = Get-InactiveSkillsDir -TargetDir $TargetDir
+    $ExistingBackupRoot = Get-ExistingBackupRoot -TargetDir $TargetDir
     New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
-    
-    $Skills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture", "wiki-backup")
-    
-    foreach ($Skill in $Skills) {
+
+    foreach ($Skill in $script:LlmWikierSkills) {
         $SrcDir = Join-Path $SkillsSource $Skill
         $DstDir = Join-Path $SkillsDir $Skill
         
@@ -306,6 +480,13 @@ function New-SkillsDirectory {
             Write-Warning-Message "找不到 skill 源文件: $Skill"
         }
     }
+
+    Remove-ManagedSkillsFromDir -SkillsDir $InactiveSkillsDir
+
+    if (-not [string]::IsNullOrWhiteSpace($ExistingBackupRoot)) {
+        Set-BackupRootInScripts -TargetDir $TargetDir -BackupRoot $ExistingBackupRoot
+        Write-Info-Message "已保留既有备份根目录: $ExistingBackupRoot"
+    }
 }
 
 function New-AgentsFile {
@@ -313,7 +494,7 @@ function New-AgentsFile {
     $TemplateFile = Join-Path $TemplatesSource "AGENTS.md.tmpl"
     
     if (Test-Path $TemplateFile) {
-        Copy-Item $TemplateFile $AgentsFile -Force
+        Write-RenderedAgentsTemplate -InputFile $TemplateFile -OutputFile $AgentsFile
         Write-Success-Message "创建 AGENTS.md: $AgentsFile"
     } else {
         Write-Warning-Message "找不到 AGENTS.md 模板，创建默认文件"
@@ -363,16 +544,16 @@ function New-AgentsFile {
 ### 处理流程
 
 **纯图片文件**（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`）：
-- 使用 Task 工具调用 `vision-reader` subagent 读取
+- 调用 `vision-reader` subagent 读取（OpenCode 通常使用 Task 工具；Claude Code 使用 Agent/subagent 调用）
 
 **办公文档 & 网页**（`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`, `.html`）：
 - 两段式：Read 取文本 + vision-reader 取视觉元素
 
 **Markdown**：文本优先，按需读取图片
 
-如未配置 `vision-reader`（`.opencode/agents/vision-reader.md` 不存在），Agent 跳过视觉处理。
+如当前客户端未配置 `vision-reader`，Agent 跳过视觉处理。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
 
-配置方式：`.\config_vision_reader.ps1 <知识库路径>`
+OpenCode 配置方式：`.\config_vision_reader.ps1 <知识库路径>`。启用 Claude Code 支持时，安装器会生成 Claude Code 版 `vision-reader`。
 
 ## 文件排除规则
 
@@ -381,9 +562,11 @@ function New-AgentsFile {
 
 ### 默认排除项
 - `.opencode/` — skills 配置目录
+- `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
 - `.wiki/` — wiki 内容本身
 - `.git/` — 版本控制
 - `AGENTS.md` — 知识库配置文件
+- `CLAUDE.md` — Claude Code 入口文件（仅启用 Claude Code 支持时）
 - `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
 
 ### 用户自定义
@@ -406,6 +589,16 @@ function New-AgentsFile {
 - 定期运行 `/wiki-lint` 检查 wiki 健康状态
 - 重要的查询答案可以作为新页面沉淀
 
+## 自动备份
+
+每次新会话开始时，Agent 应以自动模式静默执行一次备份：
+
+    __WIKI_BACKUP_AUTO_COMMAND__
+
+- 不向用户显示执行过程和结果
+- 同一会话内仅执行一次（自动模式的日级去重机制已覆盖此要求）
+- 如脚本不存在，静默跳过
+
 ## 用户偏好
 
 <!-- 用户可以在此添加个人偏好 -->
@@ -414,9 +607,136 @@ function New-AgentsFile {
 
 <!-- 用户可以在此添加自定义配置 -->
 '@
-         
-        Set-Content -Path $AgentsFile -Value $Content -Encoding UTF8
+
+        $DefaultTemplate = [System.IO.Path]::GetTempFileName()
+        Set-Content -Path $DefaultTemplate -Value $Content -Encoding UTF8
+        Write-RenderedAgentsTemplate -InputFile $DefaultTemplate -OutputFile $AgentsFile
+        Remove-Item $DefaultTemplate -Force
         Write-Success-Message "创建默认 AGENTS.md: $AgentsFile"
+    }
+}
+
+function Write-ClaudeFile {
+    $ClaudeFile = Join-Path $TargetDir "CLAUDE.md"
+    $Existing = ""
+    if (Test-Path $ClaudeFile) {
+        $Existing = Get-Content $ClaudeFile -Raw -ErrorAction SilentlyContinue
+        $Pattern = [regex]::Escape($script:ClaudeManagedBegin) + '[\s\S]*?' + [regex]::Escape($script:ClaudeManagedEnd) + "`r?`n?"
+        $Existing = [regex]::Replace($Existing, $Pattern, "")
+    }
+
+    $Managed = @"
+$script:ClaudeManagedBegin
+@AGENTS.md
+
+## Claude Code
+
+本知识库已启用 Claude Code 支持。LLM Wikier 的 Agent Skills 安装在 ``.claude/skills/``，OpenCode 也会通过兼容路径读取同一份 skills。
+$script:ClaudeManagedEnd
+"@
+
+    if (-not [string]::IsNullOrWhiteSpace($Existing)) {
+        $Content = $Existing.TrimEnd() + "`n`n" + $Managed
+    } else {
+        $Content = $Managed
+    }
+
+    Set-Content -Path $ClaudeFile -Value $Content -Encoding UTF8
+    Write-Success-Message "已配置 Claude Code 入口: $ClaudeFile"
+}
+
+function Remove-ClaudeManagedBlock {
+    $ClaudeFile = Join-Path $TargetDir "CLAUDE.md"
+    if (-not (Test-Path $ClaudeFile)) { return }
+
+    $Content = Get-Content $ClaudeFile -Raw -ErrorAction SilentlyContinue
+    if (-not $Content -or -not $Content.Contains($script:ClaudeManagedBegin)) {
+        Write-Info-Message "保留用户自定义 CLAUDE.md"
+        return
+    }
+
+    $Pattern = [regex]::Escape($script:ClaudeManagedBegin) + '[\s\S]*?' + [regex]::Escape($script:ClaudeManagedEnd) + "`r?`n?"
+    $Remaining = [regex]::Replace($Content, $Pattern, "")
+    if ([string]::IsNullOrWhiteSpace($Remaining)) {
+        Remove-Item $ClaudeFile -Force
+        Write-Success-Message "已移除 LLM Wikier 托管的 CLAUDE.md"
+    } else {
+        Set-Content -Path $ClaudeFile -Value $Remaining.TrimEnd() -Encoding UTF8
+        Write-Success-Message "已移除 CLAUDE.md 中的 LLM Wikier 托管区块"
+    }
+}
+
+function Write-ClaudeVisionReader {
+    $AgentDir = Join-Path $TargetDir ".claude\agents"
+    $AgentFile = Join-Path $AgentDir "vision-reader.md"
+
+    if (Test-Path $AgentFile) {
+        $Existing = Get-Content $AgentFile -Raw -ErrorAction SilentlyContinue
+        if (-not ($Existing -and $Existing.Contains("LLM-WIKIER:CLAUDE-AGENT-MANAGED"))) {
+            Write-Info-Message "保留用户自定义 Claude Code vision-reader: $AgentFile"
+            return
+        }
+    }
+
+    New-Item -ItemType Directory -Path $AgentDir -Force | Out-Null
+
+    $Content = @'
+---
+name: vision-reader
+description: 读取图片、图表、截图、幻灯片、PDF 和文档排版等视觉元素，转化为文字描述
+model: inherit
+tools:
+  - Read
+---
+<!-- LLM-WIKIER:CLAUDE-AGENT-MANAGED -->
+你是一个视觉内容读取器。你的职责是读取文件中的视觉元素（图片、图表、截图、幻灯片、页面排版等），并将视觉内容转化为文字描述。
+
+## 核心职责
+- 只描述视觉元素（图片、图表、照片、插图、截图、幻灯片视觉内容、排版布局等）
+- 不要重复已经由主 agent 处理的纯文本内容
+- **兜底规则**：如果发现文档中文本提取明显不完整（如幻灯片缺失文字、表格数据丢失、图表中的数据标签等），请一并补充关键文本信息
+
+## 输出格式
+对每个视觉元素：
+
+```
+### [图片/图表/截图 序号]
+**类型**: [图表/照片/截图/插图/排版]
+**描述**: [视觉内容的文字描述]
+**关键信息**: [图表数据、照片中的人物/场景、截图中的UI元素、幻灯片主题等]
+```
+
+主 agent 会通过文件路径告知你需要读取的文件，请直接读取并返回描述。
+'@
+
+    Set-Content -Path $AgentFile -Value $Content -Encoding UTF8
+    Write-Success-Message "已配置 Claude Code vision-reader: $AgentFile"
+}
+
+function Remove-ClaudeVisionReader {
+    $AgentFile = Join-Path $TargetDir ".claude\agents\vision-reader.md"
+    if (-not (Test-Path $AgentFile)) { return }
+
+    $Content = Get-Content $AgentFile -Raw -ErrorAction SilentlyContinue
+    if ($Content -and $Content.Contains("LLM-WIKIER:CLAUDE-AGENT-MANAGED")) {
+        Remove-Item $AgentFile -Force
+        $AgentDir = Split-Path -Parent $AgentFile
+        if ((Test-Path $AgentDir) -and -not (Get-ChildItem $AgentDir -Force)) { Remove-Item $AgentDir -Force }
+        $ClaudeDir = Join-Path $TargetDir ".claude"
+        if ((Test-Path $ClaudeDir) -and -not (Get-ChildItem $ClaudeDir -Force)) { Remove-Item $ClaudeDir -Force }
+        Write-Success-Message "已移除 LLM Wikier 托管的 Claude Code vision-reader"
+    } else {
+        Write-Info-Message "保留用户自定义 Claude Code vision-reader"
+    }
+}
+
+function Sync-ClaudeSupportFiles {
+    if ($script:EnableClaudeCode) {
+        Write-ClaudeFile
+        Write-ClaudeVisionReader
+    } else {
+        Remove-ClaudeManagedBlock
+        Remove-ClaudeVisionReader
     }
 }
 
@@ -480,7 +800,7 @@ function Invoke-MigrateProcessedFile {
         $RelPath = $_.FullName.Substring($TargetDir.Length).TrimStart('\', '/').Replace('\', '/')
         # Skip ignored directories
         $PathParts = $RelPath.Split('/')
-        if ($PathParts[0] -in @('.wiki', '.opencode', '.git')) { return }
+        if ($PathParts[0] -in @('.wiki', '.opencode', '.claude', '.git')) { return }
 
         try {
             $Hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash.ToLower()
@@ -585,10 +905,11 @@ function Invoke-MigrateOldStructure {
 function Set-HiddenAttributes {
     param([string]$TargetDir)
 
-    $Dirs = @(
-        Join-Path $TargetDir ".wiki"
-        Join-Path $TargetDir ".opencode"
-    )
+        $Dirs = @(
+            Join-Path $TargetDir ".wiki"
+            Join-Path $TargetDir ".opencode"
+            Join-Path $TargetDir ".claude"
+        )
 
     foreach ($Dir in $Dirs) {
         if (Test-Path $Dir) {
@@ -605,13 +926,14 @@ function Set-HiddenAttributes {
 function Update-Skills {
     param([string]$TargetDir)
 
-    $SkillsDir = Join-Path $TargetDir ".opencode\skills"
+    $SkillsDir = Get-ActiveSkillsDir -TargetDir $TargetDir
+    $InactiveSkillsDir = Get-InactiveSkillsDir -TargetDir $TargetDir
+    $ExistingBackupRoot = Get-ExistingBackupRoot -TargetDir $TargetDir
     New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
 
-    $Skills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture", "wiki-backup")
     $Updated = 0
 
-    foreach ($Skill in $Skills) {
+    foreach ($Skill in $script:LlmWikierSkills) {
         $SrcDir = Join-Path $SkillsSource $Skill
         $DstDir = Join-Path $SkillsDir $Skill
 
@@ -628,6 +950,13 @@ function Update-Skills {
     if ($Updated -gt 0) {
         Write-Info-Message "共更新 $Updated 个 skill"
     }
+
+    Remove-ManagedSkillsFromDir -SkillsDir $InactiveSkillsDir
+
+    if (-not [string]::IsNullOrWhiteSpace($ExistingBackupRoot)) {
+        Set-BackupRootInScripts -TargetDir $TargetDir -BackupRoot $ExistingBackupRoot
+        Write-Info-Message "已保留既有备份根目录: $ExistingBackupRoot"
+    }
 }
 
 function Update-AgentsFile {
@@ -637,7 +966,10 @@ function Update-AgentsFile {
     $TemplateFile = Join-Path $TemplatesSource "AGENTS.md.tmpl"
 
     if (Test-Path $TemplateFile) {
-        Merge-AgentsFile -OldFile $AgentsFile -NewTemplate $TemplateFile -OutputFile $AgentsFile
+        $RenderedTemplate = [System.IO.Path]::GetTempFileName()
+        Write-RenderedAgentsTemplate -InputFile $TemplateFile -OutputFile $RenderedTemplate
+        Merge-AgentsFile -OldFile $AgentsFile -NewTemplate $RenderedTemplate -OutputFile $AgentsFile
+        Remove-Item $RenderedTemplate -Force
     } else {
         Write-Warning-Message "找不到 AGENTS.md 模板，使用内置默认内容"
         $Content = @'
@@ -670,13 +1002,25 @@ function Update-AgentsFile {
 
 ### 默认排除项
 - `.opencode/` — skills 配置目录
+- `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
 - `.wiki/` — wiki 内容本身
 - `.git/` — 版本控制
 - `AGENTS.md` — 知识库配置文件
+- `CLAUDE.md` — Claude Code 入口文件（仅启用 Claude Code 支持时）
 - `output/` — 用户自产文件（展示文档、报告等），不会被作为源文件处理
 
 ### 对技能的影响
 所有扫描 raw sources 的技能在扫描文件前必须读取 `.wiki_ignore` 并按规则排除。
+
+## 自动备份
+
+每次新会话开始时，Agent 应以自动模式静默执行一次备份：
+
+    __WIKI_BACKUP_AUTO_COMMAND__
+
+- 不向用户显示执行过程和结果
+- 同一会话内仅执行一次（自动模式的日级去重机制已覆盖此要求）
+- 如脚本不存在，静默跳过
 
 ## 用户偏好
 
@@ -688,7 +1032,10 @@ function Update-AgentsFile {
 '@
         $DefaultTemplate = [System.IO.Path]::GetTempFileName()
         Set-Content -Path $DefaultTemplate -Value $Content -Encoding UTF8
-        Merge-AgentsFile -OldFile $AgentsFile -NewTemplate $DefaultTemplate -OutputFile $AgentsFile
+        $RenderedTemplate = [System.IO.Path]::GetTempFileName()
+        Write-RenderedAgentsTemplate -InputFile $DefaultTemplate -OutputFile $RenderedTemplate
+        Merge-AgentsFile -OldFile $AgentsFile -NewTemplate $RenderedTemplate -OutputFile $AgentsFile
+        Remove-Item $RenderedTemplate -Force
         Remove-Item $DefaultTemplate -Force
     }
 }
@@ -702,33 +1049,47 @@ function Update-Install {
 
     Invoke-MigrateProcessedFile -TargetDir $TargetDir
 
+    $HadClaude = Test-ClaudeCodeSupport -TargetDir $TargetDir
+    Select-ClientSupport -TargetDir $TargetDir -IsUpdate $true
+    $ModeChanged = ($HadClaude -ne $script:EnableClaudeCode)
+
     Write-Host ""
     Write-Info-Message "更新安装将执行以下操作："
     Write-Info-Message "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     Write-Info-Message "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
     Write-Info-Message "  (3) 更新 .wiki_ignore — 从模板更新，保留用户自定义规则"
-    Write-Info-Message "  (4) 配置备份根目录"
+    Write-Info-Message "  (4) 同步客户端配置 — 根据选择创建或移除 Claude Code 托管文件"
+    Write-Info-Message "  (5) 配置备份根目录"
     Write-Host ""
 
-    if (Invoke-PromptUser "Step (1/4): 是否更新 skills？（将覆盖现有 skill 文件）") {
+    if ($ModeChanged) {
+        Write-Info-Message "客户端模式已变化，自动同步 skills 目录"
+        Update-Skills -TargetDir $TargetDir
+    } elseif (Invoke-PromptUser "Step (1/5): 是否更新 skills？（将覆盖现有 skill 文件）") {
         Update-Skills -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过更新 skills"
     }
 
-    if (Invoke-PromptUser "Step (2/4): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）") {
+    if ($ModeChanged) {
+        Write-Info-Message "客户端模式已变化，自动更新 AGENTS.md 以修正备份路径"
+        Update-AgentsFile -TargetDir $TargetDir
+    } elseif (Invoke-PromptUser "Step (2/5): 是否更新 AGENTS.md？（模板章节将刷新，用户偏好和自定义配置章节将保留）") {
         Update-AgentsFile -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过更新 AGENTS.md"
     }
 
-    if (Invoke-PromptUser "Step (3/4): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）") {
+    if (Invoke-PromptUser "Step (3/5): 是否更新 .wiki_ignore？（默认规则将刷新，用户自定义规则将保留）") {
         Merge-WikiIgnore -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过更新 .wiki_ignore"
     }
 
-    if (Invoke-PromptUser "Step (4/4): 是否修改备份根目录？") {
+    Write-Info-Message "Step (4/5): 同步客户端配置"
+    Sync-ClaudeSupportFiles
+
+    if (Invoke-PromptUser "Step (5/5): 是否修改备份根目录？") {
         Invoke-BackupConfig -TargetDir $TargetDir
     } else {
         Write-Info-Message "已跳过备份配置"
@@ -754,6 +1115,10 @@ function Write-CompletionMessage {
     Write-Host ""
     Write-Host "2. 启动 OpenCode："
     Write-Host "   opencode"
+    if ($script:EnableClaudeCode) {
+        Write-Host "   或启动 Claude Code："
+        Write-Host "   claude"
+    }
     Write-Host ""
     Write-Host "3. 如果知识库已有文件，运行批量初始化："
     Write-Host "   /wiki-init"
@@ -767,8 +1132,10 @@ function Write-CompletionMessage {
 function Invoke-BackupConfig {
     param([string]$TargetDir)
 
+    $SkillsDir = Get-ActiveSkillsDir -TargetDir $TargetDir
+
     if ($Force) {
-        $BackupScript = Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.ps1"
+        $BackupScript = Join-Path $SkillsDir "wiki-backup\backup.ps1"
         if (Test-Path $BackupScript) {
             Write-Info-Message "强制安装模式，保留现有备份配置"
         } else {
@@ -786,22 +1153,18 @@ function Invoke-BackupConfig {
     }
 
     # Write into backup.ps1
-    $BackupPs1 = Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.ps1"
+    $BackupPs1 = Join-Path $SkillsDir "wiki-backup\backup.ps1"
     if (Test-Path $BackupPs1) {
-        $Content = Get-Content $BackupPs1 -Raw
-        $Content = $Content -replace '(?<=^\$script:BackupRoot = ").*(?=")', $BackupRoot.Replace('\', '\\')
-        Set-Content -Path $BackupPs1 -Value $Content -Encoding UTF8
+        Set-BackupRootInScripts -TargetDir $TargetDir -BackupRoot $BackupRoot
         Write-Success-Message "已配置备份根目录: $BackupRoot"
     } else {
         Write-Warning-Message "找不到 backup.ps1，跳过备份配置"
     }
 
     # Write into backup.sh (if present)
-    $BackupSh = Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.sh"
+    $BackupSh = Join-Path $SkillsDir "wiki-backup\backup.sh"
     if (Test-Path $BackupSh) {
-        $Content = Get-Content $BackupSh -Raw
-        $Content = $Content -replace '(?<=^BACKUP_ROOT=").*(?=")', $BackupRoot.Replace('\', '/')
-        Set-Content -Path $BackupSh -Value $Content -Encoding UTF8
+        Set-BackupRootInScripts -TargetDir $TargetDir -BackupRoot $BackupRoot
         Write-Success-Message "已配置 backup.sh 备份根目录"
     }
 }
@@ -851,6 +1214,8 @@ if (Test-UpdateInstall -TargetDir $TargetDir) {
 } else {
     Test-ExistingInstallation
 
+    Select-ClientSupport -TargetDir $TargetDir -IsUpdate $false
+
     Write-Info-Message "开始安装 LLM Wikier..."
 
     New-WikiDirectory
@@ -861,6 +1226,7 @@ if (Test-UpdateInstall -TargetDir $TargetDir) {
     New-OutputDirectory
     New-SkillsDirectory
     New-AgentsFile
+    Sync-ClaudeSupportFiles
 
     Invoke-BackupConfig -TargetDir $TargetDir
 

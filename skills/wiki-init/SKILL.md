@@ -2,7 +2,7 @@
 name: wiki-init
 description: 批量处理知识库中所有 raw sources 文件，构建初始 wiki 知识库
 license: MIT
-compatibility: opencode
+compatibility: opencode, claude-code
 ---
 
 ## 功能说明
@@ -50,19 +50,19 @@ compatibility: opencode
 - 办公文档的视觉元素：`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`
 - 网页和 Markdown 中的嵌入图片
 
-如果 `.opencode/agents/vision-reader.md` 未配置，则跳过视觉读取，仅处理文本内容。
+如果当前客户端未配置 `vision-reader` subagent，则跳过视觉读取，仅处理文本内容。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
 
 ### 两段式处理流程（办公文档 & 网页）
 
 1. 先用 **Read 工具**直接读取文件，获取全部文本内容
-2. 再用 **Task 工具**调用 `vision-reader` subagent 读取同一文件，获取视觉元素描述
+2. 再调用 `vision-reader` subagent 读取同一文件，获取视觉元素描述（OpenCode 通常使用 Task 工具；Claude Code 使用 Agent/subagent 调用）
    - `vision-reader` 的 system prompt 已明确指令只描述视觉元素、不重复文本
    - 兜底规则：如文档文本提取明显不完整，subagent 会补充关键文本信息
 3. 合并两段结果进行知识提取
 
 ### 完整委托（纯图片）
 
-- 纯图片文件直接用 Task 工具调用 `vision-reader` subagent 读取，获得图片文字描述
+- 纯图片文件直接调用 `vision-reader` subagent 读取，获得图片文字描述
 - 基于描述进行后续知识提取
 
 ### Markdown 文件

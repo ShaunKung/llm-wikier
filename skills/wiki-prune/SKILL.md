@@ -2,7 +2,7 @@
 name: wiki-prune
 description: 清理知识库 wiki 中的无效内容，包括孤立页面、失效链接、重复内容等
 license: MIT
-compatibility: opencode
+compatibility: opencode, claude-code
 ---
 
 ## 功能说明

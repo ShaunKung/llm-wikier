@@ -32,7 +32,7 @@ if ($script:BackupRoot -eq "__BACKUP_ROOT__") {
 # === Validate KB directory ===
 if ([string]::IsNullOrEmpty($KbDir) -or -not (Test-Path $KbDir)) {
     Write-Host "[错误] 无法定位知识库目录。脚本不在预期的安装路径中。" -ForegroundColor Red
-    Write-Host "请使用 -Root 参数显式指定备份根目录，或确认脚本位于 .opencode\skills\wiki-backup\ 下"
+    Write-Host "请使用 -Root 参数显式指定备份根目录，或确认脚本位于 .opencode\skills\wiki-backup\ 或 .claude\skills\wiki-backup\ 下"
     exit 1
 }
 
@@ -74,6 +74,7 @@ if ($DryRun) {
     Write-Host "包含内容:"
     Write-Host "  - .wiki/"
     Write-Host "  - AGENTS.md"
+    Write-Host "  - CLAUDE.md（如存在）"
     Write-Host "  - .wiki_ignore"
     exit 0
 }
@@ -82,6 +83,7 @@ if ($DryRun) {
 $Targets = @()
 if (Test-Path (Join-Path $KbDir ".wiki")) { $Targets += ".wiki" }
 if (Test-Path (Join-Path $KbDir "AGENTS.md")) { $Targets += "AGENTS.md" }
+if (Test-Path (Join-Path $KbDir "CLAUDE.md")) { $Targets += "CLAUDE.md" }
 if (Test-Path (Join-Path $KbDir ".wiki_ignore")) { $Targets += ".wiki_ignore" }
 
 if ($Targets.Count -eq 0) {

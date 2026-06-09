@@ -44,7 +44,7 @@ fi
 # === Validate KB directory ===
 if [[ ! -d "$KB_DIR" ]]; then
     print_error "无法定位知识库目录。脚本不在预期的安装路径中。"
-    echo "请使用 --root 参数显式指定备份根目录，或确认脚本位于 .opencode/skills/wiki-backup/ 下" >&2
+    echo "请使用 --root 参数显式指定备份根目录，或确认脚本位于 .opencode/skills/wiki-backup/ 或 .claude/skills/wiki-backup/ 下" >&2
     exit 1
 fi
 
@@ -83,6 +83,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "包含内容:"
     echo "  - .wiki/"
     echo "  - AGENTS.md"
+    echo "  - CLAUDE.md（如存在）"
     echo "  - .wiki_ignore"
     exit 0
 fi
@@ -92,7 +93,7 @@ cd "$KB_DIR"
 
 # Collect existing backup targets
 TARGETS=""
-for item in .wiki AGENTS.md .wiki_ignore; do
+for item in .wiki AGENTS.md CLAUDE.md .wiki_ignore; do
     if [[ -e "$item" ]]; then
         TARGETS="$TARGETS $item"
     fi

@@ -115,7 +115,7 @@ should_exclude_dir() {
     local dir_name=$(basename "$dir")
     
     case "$dir_name" in
-        wiki|.wiki|.opencode|.git|node_modules|.venv|__pycache__|.idea|.vscode)
+            wiki|.wiki|.opencode|.claude|.git|node_modules|.venv|__pycache__|.idea|.vscode)
             return 0
             ;;
     esac
