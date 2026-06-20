@@ -60,6 +60,10 @@ function Get-OfficeExtensions {
     return @("pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "odt", "odp", "ods")
 }
 
+function Get-LinkExtensions {
+    return @("url")
+}
+
 function Test-TextFile {
     param([string]$File)
     
@@ -87,10 +91,36 @@ function Test-OfficeFile {
     return $OfficeExts -contains $Ext
 }
 
+function Test-LinkFile {
+    param([string]$File)
+    
+    $Ext = [System.IO.Path]::GetExtension($File).TrimStart('.').ToLower()
+    $LinkExts = Get-LinkExtensions
+    
+    return $LinkExts -contains $Ext
+}
+
+function Get-UrlFromLinkFile {
+    param([string]$File)
+    
+    if (-not (Test-Path $File)) {
+        return $null
+    }
+    
+    $Lines = Get-Content $File -ErrorAction SilentlyContinue
+    foreach ($Line in $Lines) {
+        if ($Line -match '^[Uu][Rr][Ll]=(.+)$') {
+            return $Matches[1].Trim()
+        }
+    }
+    
+    return $null
+}
+
 function Test-SupportedFile {
     param([string]$File)
     
-    return (Test-TextFile $File) -or (Test-ImageFile $File) -or (Test-OfficeFile $File)
+    return (Test-TextFile $File) -or (Test-ImageFile $File) -or (Test-OfficeFile $File) -or (Test-LinkFile $File)
 }
 
 # DEPRECATED: 将在未来版本移除，请改用 .wiki_ignore 机制
@@ -163,7 +193,7 @@ function Test-PathIgnored {
 function Find-RawSources {
     param([string]$KbDir)
     
-    $AllExts = Get-TextExtensions + Get-ImageExtensions
+    $AllExts = Get-TextExtensions + Get-ImageExtensions + Get-LinkExtensions
     $IgnorePatterns = Read-WikiIgnore $KbDir
     $Sources = @()
     
