@@ -39,6 +39,8 @@ compatibility: opencode, claude-code
 
 **图片格式**：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 
+**网络链接格式**：`.url`（Windows Internet Shortcut，内存放目标 URL）
+
 ## 视觉内容处理策略
 
 主 agent 可能是纯文本模型，不具备图像/视觉能力。当处理以下需要视觉能力的文件时，应借助 `vision-reader` subagent。
@@ -73,6 +75,8 @@ compatibility: opencode, claude-code
 ## 处理每个文件的步骤
 
 对于每个 raw source 文件：
+
+0. **判断文件类型**：`.url` 文件按照 `wiki-ingest` skill 中「链接文件处理」章节的流程处理（解析 URL → 获取内容 → 缓存 → 计算内容哈希 → 知识提取），其他文件按以下步骤处理
 
 1. **读取内容**
    - 文本文件：直接读取全文
