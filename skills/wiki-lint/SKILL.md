@@ -194,7 +194,32 @@ compatibility: opencode, claude-code
 
 - [[entities/某实体.md]] (文件: concepts/某概念.md)
   问题: 链接应使用相对路径或不带 .md 后缀
-  建议: [[entities/某实体]]
+   建议: [[entities/某实体]]
+```
+
+### 8. 链接文件可达性检查
+
+**问题**：`.url` 文件指向的 URL 可能已失效
+
+**检查方法**：
+- 扫描知识库中所有 `.url` 文件
+- 提取 URL
+- 尝试 HTTP HEAD 请求检查可达性（不下载完整内容）
+- 报告不可达的链接
+
+**示例报告**：
+```
+### 链接可达性问题 (2 个)
+
+- `links/article.url` → https://example.com/deleted-page
+  状态: 404 Not Found
+  最后成功获取: 2026-05-15
+  建议: 检查 URL 是否正确，或运行 /wiki-prune 清理
+
+- `links/blog-post.url` → https://blog.example.com/timeout
+  状态: 连接超时
+  最后成功获取: 2026-06-01
+  建议: 稍后重试，或检查网络连接
 ```
 
 ## 健康报告格式
