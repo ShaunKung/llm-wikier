@@ -30,6 +30,8 @@
 
 **图片格式**：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 
+**网络链接格式**：`.url`（Windows Internet Shortcut 格式，内存网页 URL）
+
 ## 安装
 
 ### 前置要求

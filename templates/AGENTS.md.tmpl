@@ -52,6 +52,8 @@
 
 **图片格式**：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 
+**网络链接格式**：`.url`（Windows Internet Shortcut 格式，内存放网页 URL，双击可在浏览器中打开）
+
 ## 视觉内容处理策略
 
 主 agent 可能是纯文本模型，不具备图像/视觉能力。为此，知识库支持通过 `vision-reader` subagent 处理视觉内容。
@@ -60,6 +62,7 @@
 以下文件类型需要视觉能力处理：
 - 纯图片文件：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 - 办公文档的视觉元素：`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`
+- 网络链接指向的网页内容中的嵌入图片
 - 网页和 Markdown 中的嵌入图片
 
 ### 处理流程
@@ -92,6 +95,7 @@
 - `.opencode/` — skills 配置目录
 - `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
 - `.wiki/` — wiki 内容本身
+- `.wiki/cache/` — 链接文档缓存（不计入备份）
 - `.git/` — 版本控制
 - `AGENTS.md` — 知识库配置文件
 - `CLAUDE.md` — Claude Code 入口文件（仅启用 Claude Code 支持时）
@@ -216,6 +220,8 @@ wiki-capture 仅应捕获用户个人知识域的内容（Layer 2）：
 
 `hash` 是文件的稳定内容标识（SHA-256），`path` 是可变属性（文件移动时自动更新）。
 查找逻辑：先按 path 匹配，未命中则按 hash 匹配（支持移动/拷贝透明化）。
+
+对于 `.url` 链接文件，`hash` 存储的是获取到的远程文档内容的哈希值，而非 `.url` 文件本身的哈希。`path` 仍指向 `.url` 文件路径。
 
 ## 视觉内容处理
 

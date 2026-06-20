@@ -458,6 +458,7 @@ create_wiki_ignore_file() {
 .opencode/
 $(if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then echo ".claude/"; fi)
 .wiki/
+.wiki/cache/
 .git/
 AGENTS.md
 $(if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then echo "CLAUDE.md"; fi)
@@ -552,6 +553,8 @@ create_agents_file() {
 
 图片格式：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
 
+网络链接格式：`.url`
+
 ## 视觉内容处理策略
 
 主 agent 可能是纯文本模型。如已配置 `vision-reader` subagent，Agent 会在遇到视觉内容时自动调用。
@@ -560,6 +563,8 @@ create_agents_file() {
 
 **纯图片文件**（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`）：
 - 调用 `vision-reader` subagent 读取（OpenCode 通常使用 Task 工具；Claude Code 使用 Agent/subagent 调用）
+
+**网络链接网页**（`.url`）：Read 取文本 + vision-reader 取视觉元素
 
 **办公文档 & 网页**（`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`, `.html`）：
 - 两段式：Read 取文本 + vision-reader 取视觉元素
@@ -579,6 +584,7 @@ OpenCode 配置方式：`./config_vision_reader.sh <知识库路径>`。启用 C
 - `.opencode/` — skills 配置目录
 - `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
 - `.wiki/` — wiki 内容本身
+- `.wiki/cache/` — 链接文档缓存（不计入备份）
 - `.git/` — 版本控制
 - `AGENTS.md` — 知识库配置文件
 - `CLAUDE.md` — Claude Code 入口文件（仅启用 Claude Code 支持时）
@@ -1077,6 +1083,34 @@ update_agents_file() {
 └── analysis/         # 分析与综合页面
 ```
 
+## 支持的文件格式
+
+文本格式：`.md`, `.txt`, `.json`, `.yaml`, `.yml`, `.csv`, `.xml`, `.html`, `.rst`, `.org`, `.tex`
+
+办公文档格式：`.pdf`, `.docx`, `.doc`, `.pptx`, `.ppt`, `.xlsx`, `.xls`, `.odt`, `.odp`, `.ods`
+
+图片格式：`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`
+
+网络链接格式：`.url`
+
+## 视觉内容处理策略
+
+主 agent 可能是纯文本模型。如已配置 `vision-reader` subagent，Agent 会在遇到视觉内容时自动调用。
+
+### 处理流程
+
+**纯图片文件**（`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.bmp`）：
+- 调用 `vision-reader` subagent 读取（OpenCode 通常使用 Task 工具；Claude Code 使用 Agent/subagent 调用）
+
+**网络链接网页**（`.url`）：Read 取文本 + vision-reader 取视觉元素
+
+**办公文档 & 网页**（`.pptx`, `.ppt`, `.pdf`, `.docx`, `.doc`, `.html`）：
+- 两段式：Read 取文本 + vision-reader 取视觉元素
+
+**Markdown**：文本优先，按需读取图片
+
+如当前客户端未配置 `vision-reader`，Agent 跳过视觉处理。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
+
 ## 文件排除规则
 
 知识库根目录的 `.wiki_ignore` 文件定义了被排除的文件和目录。
@@ -1086,6 +1120,7 @@ update_agents_file() {
 - `.opencode/` — skills 配置目录
 - `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
 - `.wiki/` — wiki 内容本身
+- `.wiki/cache/` — 链接文档缓存（不计入备份）
 - `.git/` — 版本控制
 - `AGENTS.md` — 知识库配置文件
 - `CLAUDE.md` — Claude Code 入口文件（仅启用 Claude Code 支持时）
