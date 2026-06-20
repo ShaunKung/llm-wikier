@@ -9,6 +9,8 @@ compatibility: opencode, claude-code
 
 `wiki-prune` 用于清理 wiki 中的无效内容，保持知识库整洁。它会：
 
+- 清理幽灵条目（源文件已删除的处理记录）
+- 清理孤立缓存（对应链接文件已删除的缓存）
 - 移除孤立页面（没有任何入链）
 - 清理断裂链接（指向不存在页面的链接）
 - 合并重复或近似的内容
@@ -90,6 +92,32 @@ compatibility: opencode, claude-code
 已移除（文件已删除）：
 - `notes/deleted-note.md`
 - `temp/scratch.txt`
+```
+
+### 链接缓存清理
+
+**定义**：`.wiki/cache/` 中存在缓存文件，但对应的 `.url` 链接文件已从知识库中删除
+
+**检查逻辑**：
+- 扫描 `.wiki/cache/` 中的所有缓存文件
+- 提取所有 `.wiki-processed` 中 `path` 为 `.url` 的条目
+- 对于缓存中存在但知识库中对应 `.url` 文件不存在的缓存，标记为待清理
+
+**处理策略**：
+
+| 情况 | 操作 |
+|------|------|
+| `.url` 文件存在 | 保留缓存 |
+| `.url` 文件已删除 | 移除缓存文件 |
+
+**示例报告**：
+```
+### 孤立缓存文件 (2 个)
+
+- `.wiki/cache/a1b2c3d4.html` — 对应链接文件已删除
+- `.wiki/cache/e5f6g7h8.txt` — 对应链接文件已删除
+
+建议: 执行清理以释放磁盘空间
 ```
 
 ### 1. 孤立页面
@@ -263,6 +291,8 @@ for page in all_pages:
 
 | 项目 | 数量 | 操作 |
 |------|------|------|
+| 幽灵条目 | 3 | 自愈 / 移除 |
+| 孤立缓存 | 2 | 移除缓存文件 |
 | 孤立页面 | 3 | 移动到 _deprecated/ |
 | 断裂链接 | 4 | 移除 |
 | 重复内容 | 1 | 合并 |
@@ -279,6 +309,8 @@ for page in all_pages:
 - [ ] 删除 [[analysis/draft-analysis.md]]
 
 ### 可自动执行
+- [ ] 清理幽灵条目
+- [ ] 清理孤立缓存
 - [ ] 移动孤立页面到 _deprecated/
 - [ ] 移除断裂链接
 - [ ] 删除空章节
@@ -301,20 +333,30 @@ for page in all_pages:
 
 正在执行清理...
 
-[1/6] 移动孤立页面到 _deprecated/
+[1/8] 清理幽灵条目
+✓ 已自愈: papers/old.md → archive/paper.md
+✓ 已移除: notes/deleted-note.md, temp/scratch.txt
+
+[2/8] 清理孤立缓存
+✓ 移除 .wiki/cache/a1b2c3d4.html
+✓ 移除 .wiki/cache/e5f6g7h8.txt
+
+[3/8] 移动孤立页面到 _deprecated/
 ✓ entities/孤立实体.md → _deprecated/entities/孤立实体.md
 ✓ concepts/未引用概念.md → _deprecated/concepts/未引用概念.md
 
-[2/6] 移除断裂链接
+[4/8] 移除断裂链接
 ✓ 修复 concepts/某概念.md (移除 1 个链接)
 ✓ 修复 sources/source-summary.md (移除 1 个链接)
 
-[3/6] 合并重复内容
+[5/8] 合并重复内容
 ? 合并 [[entities/实体A]] 和 [[entities/实体A别名]]? [y/N]
 
 ...
 
 清理完成:
+- 幽灵条目: 3 个 (自愈 1, 移除 2)
+- 孤立缓存: 2 个
 - 移动: 2 个页面
 - 移除: 4 个链接
 - 合并: 1 个页面
