@@ -12,6 +12,7 @@
 | **编码** | 所有文本文件 UTF-8，已通过 `.gitattributes` 强制 |
 | **换行符** | `.sh` / `.md` / `.py` / `.js` → LF；`.bat` / `.cmd` → CRLF |
 | **语言** | 所有文档、注释、skill 描述使用**中文** |
+| **Git 提交信息** | 英文，遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范（`type(scope): description`），常见 type：`feat` `fix` `docs` `refactor` `chore` |
 | **许可证** | 仓库整体 GPL-3.0，但 `skills/*/SKILL.md` frontmatter 中 license 字段为 MIT（skills 会被安装到用户的知识库目录，不应强制 GPL） |
 
 ## 核心架构
