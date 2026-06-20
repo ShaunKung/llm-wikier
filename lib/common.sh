@@ -58,6 +58,10 @@ get_office_extensions() {
     echo "pdf docx doc pptx ppt xlsx xls odt odp ods"
 }
 
+get_link_extensions() {
+    echo "url"
+}
+
 is_text_file() {
     local file="$1"
     local ext="${file##*.}"
@@ -103,9 +107,42 @@ is_office_file() {
     return 1
 }
 
+is_link_file() {
+    local file="$1"
+    local ext="${file##*.}"
+    ext=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
+    
+    local link_exts=$(get_link_extensions)
+    for link_ext in $link_exts; do
+        if [[ "$ext" == "$link_ext" ]]; then
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+parse_url_from_link_file() {
+    local file="$1"
+    
+    if [[ ! -f "$file" ]]; then
+        return 1
+    fi
+    
+    local url
+    url=$(grep -i '^URL=' "$file" | head -1 | sed 's/^[Uu][Rr][Ll]=//' | tr -d '\r')
+    
+    if [[ -z "$url" ]]; then
+        return 1
+    fi
+    
+    echo "$url"
+    return 0
+}
+
 is_supported_file() {
     local file="$1"
-    is_text_file "$file" || is_image_file "$file" || is_office_file "$file"
+    is_text_file "$file" || is_image_file "$file" || is_office_file "$file" || is_link_file "$file"
 }
 
 # DEPRECATED: 将在未来版本移除，请改用 .wiki_ignore 机制
@@ -183,7 +220,8 @@ find_raw_sources() {
     
     local text_exts=$(get_text_extensions)
     local image_exts=$(get_image_extensions)
-    local all_exts="$text_exts $image_exts"
+    local link_exts=$(get_link_extensions)
+    local all_exts="$text_exts $image_exts $link_exts"
     
     local name_args=""
     for ext in $all_exts; do
