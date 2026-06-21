@@ -127,18 +127,103 @@ URL=https://example.com
 
 链接文件的处理流程与普通文件不同：Agent 需要先获取远程文档内容，再进行知识提取。
 
+### 缓存元数据
+
+`.wiki/cache/` 目录中除缓存内容文件外，还存储对应的元数据文件 `.meta.json`，用于高效变更检测。
+
+**元数据文件路径**：`.wiki/cache/{url_hash}.meta.json`
+
+**格式**：
+
+```json
+{
+  "url_hash": "sha256-of-url",
+  "content_hash": "sha256-of-content",
+  "etag": "\"abc123\"",
+  "last_modified": "Wed, 21 Oct 2015 07:28:00 GMT",
+  "content_type": "text/html",
+  "cached_at": "2026-01-01T00:00:00Z"
+}
+```
+
+- `url_hash`：目标 URL 的 SHA-256 哈希，用于索引缓存文件
+- `content_hash`：缓存内容的 SHA-256 哈希，与 `.wiki-processed` 中 `hash` 字段一致
+- `etag` / `last_modified`：服务器返回的 HTTP 响应头，用于条件请求；不存在则为 `null`
+- `.meta.json` 不计入备份范围（与 `.wiki/cache/` 整体排除规则一致）
+
+### HTTP 条件请求（优化变更检测）
+
+为避免每次处理都完整下载远程内容，采用三级检测策略，优先使用轻量级 HTTP 条件请求判断内容是否变化：
+
+**三级检测流程**：
+
+```
+检查 .meta.json 是否存在？
+├── 存在且有 etag
+│   └── 发送 GET + If-None-Match: <etag>
+│       ├── 304 Not Modified → 内容未变，直接使用缓存内容，跳过下载
+│       └── 200 OK → 内容已变，使用返回的新内容
+│
+├── 存在且有 last_modified（无 etag）
+│   └── 发送 GET + If-Modified-Since: <last_modified>
+│       ├── 304 Not Modified → 内容未变，使用缓存内容
+│       └── 200 OK → 内容已变，使用新内容
+│
+└── 不存在或服务器不支持条件请求
+    └── 完整下载 → 计算哈希 → 与缓存哈希比对
+        ├── 哈希相同 → 内容未变（更新 .meta.json）
+        └── 哈希不同 → 内容已变
+```
+
+**实现注意**：
+- 对于支持 MCP 工具的环境，优先使用 MCP 工具发送条件请求
+- 对于 webfetch 工具，通过其提供的 HTTP 头参数设置条件请求头
+- 如所用工具不支持自定义请求头，回退到完整下载 + 哈希比对
+
 ### 链接文件处理步骤
 
 1. **解析 URL**：读取 `.url` 文件，提取 `URL=` 后的值
-2. **获取文档内容**：按以下优先级尝试获取：
-   - **优先**：检测当前运行环境中可用的 MCP 工具、skill 或 plugin（如 `web_fetch` MCP server 等）
-   - **Fallback**：使用通用 webfetch 工具
-   - 获取失败时，检查 `.wiki/cache/` 中是否有该 URL 的缓存内容作为兜底
-3. **缓存内容**：将获取到的文档内容写入 `.wiki/cache/` 目录。缓存文件名由 URL 的 SHA-256 哈希值 + 响应的 Content-Type 扩展名组成（如 `.wiki/cache/a1b2c3d4.html`）
-4. **计算内容哈希**：对获取到的文档内容计算 SHA-256 哈希（不是对 `.url` 文件本身计算哈希）
-5. **两阶段识别**：使用计算出的内容哈希与 `.wiki-processed` 中的 `hash` 字段比对
-6. **知识提取**：与普通文本文件相同的提取流程（识别实体、概念、创建 wiki 页面等）
-7. **更新处理状态**：在 `.wiki-processed` 中添加条目，`path` 为 `.url` 文件的相对路径，`hash` 为文档内容的哈希值
+2. **计算 URL 哈希**：对提取的 URL 计算 SHA-256 哈希，用于定位缓存文件和元数据
+3. **尝试条件请求**（如上文「HTTP 条件请求」流程）：
+   - 读取 `.wiki/cache/{url_hash}.meta.json`（如存在）
+   - 按三级检测流程判断内容是否变化
+   - 304 → 直接使用缓存内容，跳至步骤 5
+   - 200 或需完整下载 → 获取新内容
+   - 获取失败时，检查缓存内容作为兜底
+4. **缓存内容与元数据**：
+   - 将文档内容写入 `.wiki/cache/{url_hash}.{ext}`（扩展名从 Content-Type 推断）
+   - 写入 `.wiki/cache/{url_hash}.meta.json`（含 etag、last_modified、content_hash 等）
+5. **计算内容哈希**：对文档内容计算 SHA-256 哈希（不是对 `.url` 文件本身计算哈希）
+6. **两阶段识别**：使用计算出的内容哈希与 `.wiki-processed` 中的 `hash` 字段比对
+7. **知识提取**：与普通文本文件相同的提取流程（识别实体、概念、创建 wiki 页面等）
+8. **更新处理状态**：在 `.wiki-processed` 中添加条目，`path` 为 `.url` 文件的相对路径，`hash` 为文档内容的哈希值
+
+### 并行处理（多链接文件加速）
+
+当需要处理多个 `.url` 文件时（`/wiki-ingest` 自动检测模式、`/wiki-init` 批量初始化、`/wiki-update --all-changed`），将链接文件的获取阶段并行化以大幅提升处理速度。
+
+**并行策略**：按阶段拆分——获取阶段并行，知识提取阶段串行。
+
+**步骤**：
+1. **分组**：将所有待处理的 `.url` 文件归为一组
+2. **并行获取**：为每个 `.url` 文件分派一个 subagent，各自独立执行：
+   - 解析 URL
+   - 执行条件请求（优先 304 检测）
+   - 必要时下载完整内容
+   - 缓存内容和写入 `.meta.json`
+   - 计算内容哈希
+   - 返回结果：`{ url_file_path, status: "unchanged|updated|new|failed", content_hash, cache_path, error }`
+3. **收集结果**：主 agent 等待所有 subagent 返回
+4. **串行提取**：主 agent 对 `status` 为 `updated` 或 `new` 的结果，按顺序执行知识提取（步骤 5-8）
+
+**效率提升**：N 个 URL 文件的网络获取时间从 O(N × 平均下载时间) 降至 O(max(各 URL 下载时间))，在 5+ 个链接文件时效果显著。
+
+**subagent 需返回的关键信息**：
+- `.url` 文件路径（用于 `.wiki-processed` 记录）
+- 处理状态：`unchanged`（304/哈希不变）、`updated`（已变化）、`new`（首次处理）、`failed`（获取失败）
+- 内容哈希（用于两阶段识别）
+- 缓存文件路径
+- 错误信息（如失败）
 
 ### 链接文件命名
 

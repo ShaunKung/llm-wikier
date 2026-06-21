@@ -223,6 +223,55 @@ wiki-capture 仅应捕获用户个人知识域的内容（Layer 2）：
 
 对于 `.url` 链接文件，`hash` 存储的是获取到的远程文档内容的哈希值，而非 `.url` 文件本身的哈希。`path` 仍指向 `.url` 文件路径。
 
+## 链接文件缓存机制
+
+`.wiki/cache/` 目录存储从远程 URL 获取的文档内容快照，用于离线兜底和高效变更检测。
+
+### 缓存目录结构
+
+```
+.wiki/cache/
+├── {url_sha256}.html          # 文档内容快照
+├── {url_sha256}.meta.json     # 缓存元数据
+├── {url_sha256_2}.pdf
+├── {url_sha256_2}.meta.json
+└── ...
+```
+
+文件名 = `SHA-256(URL) + "." + Content-Type 推断的扩展名`。
+
+### 缓存元数据格式
+
+```json
+{
+  "url_hash": "sha256-of-url",
+  "content_hash": "sha256-of-content",
+  "etag": "\"abc123\"",
+  "last_modified": "Wed, 21 Oct 2015 07:28:00 GMT",
+  "content_type": "text/html",
+  "cached_at": "2026-01-01T00:00:00Z"
+}
+```
+
+- `url_hash`：目标 URL 的 SHA-256 哈希，用于索引缓存文件
+- `content_hash`：缓存内容的 SHA-256 哈希，与 `.wiki-processed` 中 `hash` 字段一致
+- `etag` / `last_modified`：HTTP 响应头，用于条件请求实现高效变更检测；不存在则为 `null`
+- 整个 `.wiki/cache/` 目录（含 `.meta.json`）不参与备份
+
+### HTTP 条件请求
+
+处理 `.url` 文件时，优先使用 HTTP 条件请求（GET + If-None-Match / If-Modified-Since）检测远程内容是否变化：
+
+- **304 Not Modified** → 内容未变，直接使用缓存，无需下载
+- **200 OK** → 内容已变，下载新内容并更新缓存和元数据
+- 服务器不支持条件请求 → 完整下载后与缓存哈希比对
+
+这是链接文件处理的核心性能优化，将变更检测从「每次完整下载」降级为「仅在变化时下载」。详细流程参见 `wiki-ingest` skill 的「HTTP 条件请求」和「并行处理」章节。
+
+### .wiki_ignore 中的 cache 排除
+
+`.wiki/cache/` 目录通过 `.wiki_ignore` 默认排除，不会被作为源文件扫描，也不会被备份。Agent 在执行 `wiki-lint` 的「链接文件可达性检查」和 `wiki-prune` 的「链接缓存清理」时均需关注此目录。
+
 ## 视觉内容处理
 
 对于需要视觉能力的文件类型（图片、办公文档、网页），参见上文「视觉内容处理策略」章节。

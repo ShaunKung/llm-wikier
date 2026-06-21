@@ -96,26 +96,28 @@ compatibility: opencode, claude-code
 
 ### 链接缓存清理
 
-**定义**：`.wiki/cache/` 中存在缓存文件，但对应的 `.url` 链接文件已从知识库中删除
+**定义**：`.wiki/cache/` 中存在缓存文件或 `.meta.json` 元数据文件，但对应的 `.url` 链接文件已从知识库中删除
 
 **检查逻辑**：
-- 扫描 `.wiki/cache/` 中的所有缓存文件
+- 扫描 `.wiki/cache/` 中的所有缓存文件和 `.meta.json` 文件
 - 提取所有 `.wiki-processed` 中 `path` 为 `.url` 的条目
-- 对于缓存中存在但知识库中对应 `.url` 文件不存在的缓存，标记为待清理
+- 对于缓存/元数据文件存在但知识库中对应 `.url` 文件不存在的缓存，标记为待清理
 
 **处理策略**：
 
 | 情况 | 操作 |
 |------|------|
-| `.url` 文件存在 | 保留缓存 |
-| `.url` 文件已删除 | 移除缓存文件 |
+| `.url` 文件存在 | 保留缓存及 `.meta.json` |
+| `.url` 文件已删除 | 移除缓存文件和对应的 `.meta.json` |
 
 **示例报告**：
 ```
-### 孤立缓存文件 (2 个)
+### 孤立缓存文件 (4 个)
 
 - `.wiki/cache/a1b2c3d4.html` — 对应链接文件已删除
+- `.wiki/cache/a1b2c3d4.meta.json` — 对应链接文件已删除
 - `.wiki/cache/e5f6g7h8.txt` — 对应链接文件已删除
+- `.wiki/cache/e5f6g7h8.meta.json` — 对应链接文件已删除
 
 建议: 执行清理以释放磁盘空间
 ```
@@ -338,8 +340,8 @@ for page in all_pages:
 ✓ 已移除: notes/deleted-note.md, temp/scratch.txt
 
 [2/8] 清理孤立缓存
-✓ 移除 .wiki/cache/a1b2c3d4.html
-✓ 移除 .wiki/cache/e5f6g7h8.txt
+✓ 移除 .wiki/cache/a1b2c3d4.html 及 .meta.json
+✓ 移除 .wiki/cache/e5f6g7h8.txt 及 .meta.json
 
 [3/8] 移动孤立页面到 _deprecated/
 ✓ entities/孤立实体.md → _deprecated/entities/孤立实体.md

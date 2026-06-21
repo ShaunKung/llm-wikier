@@ -7,7 +7,7 @@ compatibility: opencode, claude-code
 
 ## 功能说明
 
-`wiki-backup` 提供知识库数据的备份和恢复能力。备份范围包括 `.wiki/`（排除 `.wiki/cache/` 缓存目录）、`AGENTS.md`、`CLAUDE.md`（如存在）、`.wiki_ignore`。
+`wiki-backup` 提供知识库数据的备份和恢复能力。备份范围包括 `.wiki/`（排除 `.wiki/cache/` 缓存目录及其中的 `.meta.json` 元数据文件）、`AGENTS.md`、`CLAUDE.md`（如存在）、`.wiki_ignore`。
 
 备份由独立的 `backup.sh`（Linux/Mac）或 `backup.ps1`（Windows）脚本执行，位于当前安装模式的 skills 目录下：
 

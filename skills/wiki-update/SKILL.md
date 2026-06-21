@@ -25,16 +25,26 @@ compatibility: opencode, claude-code
 
 ### 链接文件更新（`.url`）
 
-对于 `.url` 文件，更新流程与普通文件不同——需要重新获取远程内容：
+对于 `.url` 文件，更新流程与普通文件不同——需要重新获取远程内容。优先使用 HTTP 条件请求优化变更检测，仅当内容确实变化时才下载完整内容。
 
 1. **解析 URL**：从 `.url` 文件提取目标 URL
-2. **获取最新内容**：优先 MCP/skill/plugin → fallback webfetch
-3. **计算新哈希**：对最新内容计算 SHA-256
-4. **比对哈希**：与 `.wiki-processed` 中记录的 `hash` 比较
-   - **哈希相同** → 远程内容未变化，跳过更新
-   - **哈希不同** → 内容已更新，执行完整 re-ingest
-5. **更新缓存**：将最新内容写入 `.wiki/cache/`（覆盖旧缓存）
-6. **后续流程**：同普通文件的差异分析、wiki 页面更新、日志记录
+2. **计算 URL 哈希**：对提取的 URL 计算 SHA-256
+3. **尝试条件请求**（参见 `wiki-ingest` skill 中「HTTP 条件请求」章节）：
+   - 读取 `.wiki/cache/{url_hash}.meta.json` 获取缓存的 etag / last_modified
+   - 发送条件 GET（If-None-Match / If-Modified-Since）
+   - **304 Not Modified** → 远程内容未变化，跳过更新（输出「内容未变化」）
+   - **200 OK** 或条件请求不可用 → 获取最新内容，继续下一步
+   - 获取失败 → 进入「获取失败处理」
+4. **计算新哈希**：对获取到的最新内容计算 SHA-256
+5. **比对哈希**：与 `.wiki-processed` 中记录的 `hash` 比较
+   - **哈希相同** → 远程内容未变化，更新 `.meta.json` 中的 etag/last_modified（如服务器返回），跳过更新
+   - **哈希不同** → 内容已更新，继续下一步
+6. **更新缓存与元数据**：将最新内容写入 `.wiki/cache/{url_hash}.{ext}`（覆盖旧缓存），写入 `.wiki/cache/{url_hash}.meta.json`
+7. **后续流程**：同普通文件的差异分析、wiki 页面更新、日志记录
+
+### 并行处理（--all-changed 加速）
+
+当 `/wiki-update --all-changed` 涉及多个 `.url` 文件时，采用与 `wiki-ingest` 相同的并行策略：为每个 `.url` 文件分派 subagent 独立执行获取与哈希计算（步骤 1-5），主 agent 收集结果后再串行执行差异分析与 wiki 更新。
 
 ### 获取失败处理
 
@@ -83,7 +93,7 @@ compatibility: opencode, claude-code
 1. 检查文件是否存在记录路径，不存在则按 hash 搜索（自愈）
 2. 比对新旧哈希值，找出内容变化的文件
 3. 对 hash 未命中任何源文件的条目，报告为幽灵条目
-4. 对于 `.url` 文件，重新获取远程内容后比对哈希
+4. 对于 `.url` 文件，优先使用 HTTP 条件请求检测变更，批量 `.url` 文件时应并行分派 subagent 处理获取阶段（参见「链接文件更新」章节的并行处理说明）
 
 ### 强制更新（即使内容未变）
 
