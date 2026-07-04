@@ -12,10 +12,11 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SkillsSource = Join-Path $ScriptDir "skills"
 $TemplatesSource = Join-Path $ScriptDir "templates"
 
-$script:EnableClaudeCode = $false
+$script:ClientMode = "opencode"
 $script:LlmWikierSkills = @("wiki-init", "wiki-ingest", "wiki-query", "wiki-lint", "wiki-update", "wiki-prune", "wiki-capture", "wiki-backup")
 $script:ClaudeManagedBegin = "<!-- LLM-WIKIER:CLAUDE-MANAGED:BEGIN -->"
 $script:ClaudeManagedEnd = "<!-- LLM-WIKIER:CLAUDE-MANAGED:END -->"
+$script:CodexAgentManaged = "LLM-WIKIER:CODEX-AGENT-MANAGED"
 
 function Write-Error-Message {
     param([string]$Message)
@@ -67,7 +68,8 @@ function Test-UpdateInstall {
     $KeySkills = @("wiki-ingest", "wiki-lint", "wiki-query")
     $SkillRoots = @(
         (Join-Path $TargetDir ".opencode\skills"),
-        (Join-Path $TargetDir ".claude\skills")
+        (Join-Path $TargetDir ".claude\skills"),
+        (Join-Path $TargetDir ".agents\skills")
     )
 
     foreach ($SkillRoot in $SkillRoots) {
@@ -100,6 +102,29 @@ function Test-ClaudeCodeSupport {
     return $false
 }
 
+function Test-CodexSupport {
+    param([string]$TargetDir)
+
+    $CodexSkill = Join-Path $TargetDir ".agents\skills\wiki-ingest\SKILL.md"
+    if (Test-Path $CodexSkill) { return $true }
+
+    $CodexAgent = Join-Path $TargetDir ".codex\agents\vision-reader.toml"
+    if (Test-Path $CodexAgent) {
+        $Content = Get-Content $CodexAgent -Raw -ErrorAction SilentlyContinue
+        if ($Content -and $Content.Contains($script:CodexAgentManaged)) { return $true }
+    }
+
+    return $false
+}
+
+function Get-CurrentMode {
+    param([string]$TargetDir)
+
+    if (Test-CodexSupport -TargetDir $TargetDir) { return "codex" }
+    if (Test-ClaudeCodeSupport -TargetDir $TargetDir) { return "claude" }
+    return "opencode"
+}
+
 function Invoke-PromptUser {
     param([string]$Message)
 
@@ -116,52 +141,85 @@ function Select-ClientSupport {
     param([string]$TargetDir, [bool]$IsUpdate)
 
     if ($Force) {
-        $script:EnableClaudeCode = ($IsUpdate -and (Test-ClaudeCodeSupport -TargetDir $TargetDir))
+        if ($IsUpdate) {
+            $script:ClientMode = Get-CurrentMode -TargetDir $TargetDir
+        } else {
+            $script:ClientMode = "opencode"
+        }
         return
     }
 
     Write-Host ""
-    if ($IsUpdate -and (Test-ClaudeCodeSupport -TargetDir $TargetDir)) {
-        if (Invoke-PromptUser "检测到当前知识库已支持 Claude Code，是否继续支持？") {
-            $script:EnableClaudeCode = $true
-        } else {
-            $script:EnableClaudeCode = $false
+    if ($IsUpdate) {
+        $CurrentMode = Get-CurrentMode -TargetDir $TargetDir
+        switch ($CurrentMode) {
+            "claude" { Write-Info-Message "检测到当前知识库已支持 Claude Code" }
+            "codex"  { Write-Info-Message "检测到当前知识库已支持 Codex" }
+            default  { Write-Info-Message "检测到当前知识库为 OpenCode-only" }
+        }
+        Write-Host "[询问] " -ForegroundColor Yellow -NoNewline
+        Write-Host "选择客户端模式："
+        Write-Host "  1) 保持不变（$CurrentMode）"
+        Write-Host "  2) OpenCode + Codex"
+        Write-Host "  3) OpenCode + Claude Code"
+        Write-Host "  4) 仅 OpenCode（移除其他支持）"
+        $Response = (Read-Host).Trim()
+        switch ($Response) {
+            "1" { $script:ClientMode = $CurrentMode }
+            ""  { $script:ClientMode = $CurrentMode }
+            "2" { $script:ClientMode = "codex" }
+            "3" { $script:ClientMode = "claude" }
+            "4" { $script:ClientMode = "opencode" }
+            default {
+                Write-Warning-Message "无效选择，保持当前模式"
+                $script:ClientMode = $CurrentMode
+            }
         }
     } else {
         Write-Host "[询问] " -ForegroundColor Yellow -NoNewline
-        Write-Host "是否需要支持除 OpenCode 之外的其它客户端？当前可选：Claude Code [y/N] " -NoNewline
-        $Response = Read-Host
-        $script:EnableClaudeCode = ($Response -match '^[yY](es|ES)?$')
+        Write-Host "是否需要支持除 OpenCode 之外的其它客户端？"
+        Write-Host "  1) 仅 OpenCode（默认）"
+        Write-Host "  2) OpenCode + Claude Code"
+        Write-Host "  3) OpenCode + Codex"
+        $Response = (Read-Host).Trim()
+        switch ($Response) {
+            "2" { $script:ClientMode = "claude" }
+            "3" { $script:ClientMode = "codex" }
+            default { $script:ClientMode = "opencode" }
+        }
     }
 
-    if ($script:EnableClaudeCode) {
-        Write-Info-Message "客户端模式: OpenCode + Claude Code"
-    } else {
-        Write-Info-Message "客户端模式: OpenCode-only"
+    switch ($script:ClientMode) {
+        "claude" { Write-Info-Message "客户端模式: OpenCode + Claude Code" }
+        "codex"  { Write-Info-Message "客户端模式: OpenCode + Codex" }
+        default  { Write-Info-Message "客户端模式: OpenCode-only" }
     }
 }
 
 function Get-ActiveSkillsDir {
     param([string]$TargetDir)
-    if ($script:EnableClaudeCode) {
-        return (Join-Path $TargetDir ".claude\skills")
+    switch ($script:ClientMode) {
+        "claude" { return (Join-Path $TargetDir ".claude\skills") }
+        "codex"  { return (Join-Path $TargetDir ".agents\skills") }
+        default  { return (Join-Path $TargetDir ".opencode\skills") }
     }
-    return (Join-Path $TargetDir ".opencode\skills")
 }
 
-function Get-InactiveSkillsDir {
+function Get-InactiveSkillsDirs {
     param([string]$TargetDir)
-    if ($script:EnableClaudeCode) {
-        return (Join-Path $TargetDir ".opencode\skills")
+    switch ($script:ClientMode) {
+        "claude" { return @((Join-Path $TargetDir ".opencode\skills"), (Join-Path $TargetDir ".agents\skills")) }
+        "codex"  { return @((Join-Path $TargetDir ".opencode\skills"), (Join-Path $TargetDir ".claude\skills")) }
+        default  { return @((Join-Path $TargetDir ".claude\skills"), (Join-Path $TargetDir ".agents\skills")) }
     }
-    return (Join-Path $TargetDir ".claude\skills")
 }
 
 function Get-BackupAutoCommand {
-    if ($script:EnableClaudeCode) {
-        return "powershell -NoProfile -ExecutionPolicy Bypass -File .claude\skills\wiki-backup\backup.ps1 -Auto"
+    switch ($script:ClientMode) {
+        "claude" { return "powershell -NoProfile -ExecutionPolicy Bypass -File .claude\skills\wiki-backup\backup.ps1 -Auto" }
+        "codex"  { return "powershell -NoProfile -ExecutionPolicy Bypass -File .agents\skills\wiki-backup\backup.ps1 -Auto" }
+        default  { return "powershell -NoProfile -ExecutionPolicy Bypass -File .opencode\skills\wiki-backup\backup.ps1 -Auto" }
     }
-    return "powershell -NoProfile -ExecutionPolicy Bypass -File .opencode\skills\wiki-backup\backup.ps1 -Auto"
 }
 
 function Get-ExistingBackupRoot {
@@ -170,8 +228,10 @@ function Get-ExistingBackupRoot {
     $Candidates = @(
         (Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.ps1"),
         (Join-Path $TargetDir ".claude\skills\wiki-backup\backup.ps1"),
+        (Join-Path $TargetDir ".agents\skills\wiki-backup\backup.ps1"),
         (Join-Path $TargetDir ".opencode\skills\wiki-backup\backup.sh"),
-        (Join-Path $TargetDir ".claude\skills\wiki-backup\backup.sh")
+        (Join-Path $TargetDir ".claude\skills\wiki-backup\backup.sh"),
+        (Join-Path $TargetDir ".agents\skills\wiki-backup\backup.sh")
     )
 
     foreach ($File in $Candidates) {
@@ -326,8 +386,9 @@ function Test-ExistingInstallation {
     $AgentsFile = Join-Path $TargetDir "AGENTS.md"
     $SkillsDir = Join-Path $TargetDir ".opencode\skills"
     $ClaudeManaged = Test-ClaudeCodeSupport -TargetDir $TargetDir
+    $CodexManaged = Test-CodexSupport -TargetDir $TargetDir
     
-    if ((Test-Path $WikiDir) -or (Test-Path $OldWikiDir) -or (Test-Path $AgentsFile) -or (Test-Path $SkillsDir) -or $ClaudeManaged) {
+    if ((Test-Path $WikiDir) -or (Test-Path $OldWikiDir) -or (Test-Path $AgentsFile) -or (Test-Path $SkillsDir) -or $ClaudeManaged -or $CodexManaged) {
         if ($Force) {
             Write-Warning-Message "检测到已有安装，将强制覆盖"
         } else {
@@ -400,11 +461,15 @@ function New-WikiIgnoreFile {
     $IgnoreFile = Join-Path $TargetDir ".wiki_ignore"
 
     $DefaultRules = @(".opencode/")
-    if ($script:EnableClaudeCode) {
+    if ($script:ClientMode -eq "claude") {
         $DefaultRules += ".claude/"
     }
+    if ($script:ClientMode -eq "codex") {
+        $DefaultRules += ".agents/"
+        $DefaultRules += ".codex/"
+    }
     $DefaultRules += @(".wiki/", ".wiki/cache/", ".git/", "AGENTS.md")
-    if ($script:EnableClaudeCode) {
+    if ($script:ClientMode -eq "claude") {
         $DefaultRules += "CLAUDE.md"
     }
     $DefaultRules += "output/"
@@ -464,7 +529,6 @@ function Merge-WikiIgnore {
 
 function New-SkillsDirectory {
     $SkillsDir = Get-ActiveSkillsDir -TargetDir $TargetDir
-    $InactiveSkillsDir = Get-InactiveSkillsDir -TargetDir $TargetDir
     $ExistingBackupRoot = Get-ExistingBackupRoot -TargetDir $TargetDir
     New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
 
@@ -481,7 +545,10 @@ function New-SkillsDirectory {
         }
     }
 
-    Remove-ManagedSkillsFromDir -SkillsDir $InactiveSkillsDir
+    $InactiveDirs = Get-InactiveSkillsDirs -TargetDir $TargetDir
+    foreach ($InactiveDir in $InactiveDirs) {
+        Remove-ManagedSkillsFromDir -SkillsDir $InactiveDir
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($ExistingBackupRoot)) {
         Set-BackupRootInScripts -TargetDir $TargetDir -BackupRoot $ExistingBackupRoot
@@ -735,13 +802,84 @@ function Remove-ClaudeVisionReader {
     }
 }
 
-function Sync-ClaudeSupportFiles {
-    if ($script:EnableClaudeCode) {
-        Write-ClaudeFile
-        Write-ClaudeVisionReader
+function Write-CodexVisionReader {
+    $AgentDir = Join-Path $TargetDir ".codex\agents"
+    $AgentFile = Join-Path $AgentDir "vision-reader.toml"
+
+    if (Test-Path $AgentFile) {
+        $Existing = Get-Content $AgentFile -Raw -ErrorAction SilentlyContinue
+        if ($Existing -and -not ($Existing.Contains($script:CodexAgentManaged))) {
+            Write-Info-Message "保留用户自定义 Codex vision-reader: $AgentFile"
+            return
+        }
+    }
+
+    New-Item -ItemType Directory -Path $AgentDir -Force | Out-Null
+
+    $Content = @'
+# LLM-WIKIER:CODEX-AGENT-MANAGED
+name = "vision-reader"
+description = "读取图片、图表、截图、幻灯片、PDF 和文档排版等视觉元素,转化为文字描述"
+sandbox_mode = "read-only"
+
+developer_instructions = """
+你是一个视觉内容读取器。你的职责是读取文件中的视觉元素(图片、图表、截图、幻灯片、页面排版等),并将视觉内容转化为文字描述。
+
+## 核心职责
+- 只描述视觉元素(图片、图表、照片、插图、截图、幻灯片视觉内容、排版布局等)
+- 不要重复已经由主 agent 处理的纯文本内容
+- **兜底规则**:如果发现文档中文本提取明显不完整(如幻灯片缺失文字、表格数据丢失、图表中的数据标签等),请一并补充关键文本信息
+
+## 输出格式
+对每个视觉元素:
+
+### [图片/图表/截图 序号]
+**类型**: [图表/照片/截图/插图/排版]
+**描述**: [视觉内容的文字描述]
+**关键信息**: [图表数据、照片中的人物/场景、截图中的UI元素、幻灯片主题等]
+
+主 agent 会通过文件路径告知你需要读取的文件,请直接读取并返回描述。
+"""
+'@
+
+    Set-Content -Path $AgentFile -Value $Content -Encoding UTF8
+    Write-Success-Message "已配置 Codex vision-reader: $AgentFile"
+}
+
+function Remove-CodexVisionReader {
+    $AgentFile = Join-Path $TargetDir ".codex\agents\vision-reader.toml"
+    if (-not (Test-Path $AgentFile)) { return }
+
+    $Content = Get-Content $AgentFile -Raw -ErrorAction SilentlyContinue
+    if ($Content -and $Content.Contains($script:CodexAgentManaged)) {
+        Remove-Item $AgentFile -Force
+        $AgentDir = Split-Path -Parent $AgentFile
+        if ((Test-Path $AgentDir) -and -not (Get-ChildItem $AgentDir -Force)) { Remove-Item $AgentDir -Force }
+        $CodexDir = Join-Path $TargetDir ".codex"
+        if ((Test-Path $CodexDir) -and -not (Get-ChildItem $CodexDir -Force)) { Remove-Item $CodexDir -Force }
+        Write-Success-Message "已移除 LLM Wikier 托管的 Codex vision-reader"
     } else {
-        Remove-ClaudeManagedBlock
-        Remove-ClaudeVisionReader
+        Write-Info-Message "保留用户自定义 Codex vision-reader"
+    }
+}
+
+function Sync-ClientSupportFiles {
+    switch ($script:ClientMode) {
+        "claude" {
+            Write-ClaudeFile
+            Write-ClaudeVisionReader
+            Remove-CodexVisionReader
+        }
+        "codex" {
+            Write-CodexVisionReader
+            Remove-ClaudeManagedBlock
+            Remove-ClaudeVisionReader
+        }
+        default {
+            Remove-ClaudeManagedBlock
+            Remove-ClaudeVisionReader
+            Remove-CodexVisionReader
+        }
     }
 }
 
@@ -932,7 +1070,6 @@ function Update-Skills {
     param([string]$TargetDir)
 
     $SkillsDir = Get-ActiveSkillsDir -TargetDir $TargetDir
-    $InactiveSkillsDir = Get-InactiveSkillsDir -TargetDir $TargetDir
     $ExistingBackupRoot = Get-ExistingBackupRoot -TargetDir $TargetDir
     New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
 
@@ -956,7 +1093,10 @@ function Update-Skills {
         Write-Info-Message "共更新 $Updated 个 skill"
     }
 
-    Remove-ManagedSkillsFromDir -SkillsDir $InactiveSkillsDir
+    $InactiveDirs = Get-InactiveSkillsDirs -TargetDir $TargetDir
+    foreach ($InactiveDir in $InactiveDirs) {
+        Remove-ManagedSkillsFromDir -SkillsDir $InactiveDir
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($ExistingBackupRoot)) {
         Set-BackupRootInScripts -TargetDir $TargetDir -BackupRoot $ExistingBackupRoot
@@ -1083,21 +1223,21 @@ function Update-Install {
 
     Invoke-MigrateProcessedFile -TargetDir $TargetDir
 
-    $HadClaude = Test-ClaudeCodeSupport -TargetDir $TargetDir
+    $PreviousMode = Get-CurrentMode -TargetDir $TargetDir
     Select-ClientSupport -TargetDir $TargetDir -IsUpdate $true
-    $ModeChanged = ($HadClaude -ne $script:EnableClaudeCode)
+    $ModeChanged = ($PreviousMode -ne $script:ClientMode)
 
     Write-Host ""
     Write-Info-Message "更新安装将执行以下操作："
     Write-Info-Message "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     Write-Info-Message "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
     Write-Info-Message "  (3) 更新 .wiki_ignore — 从模板更新，保留用户自定义规则"
-    Write-Info-Message "  (4) 同步客户端配置 — 根据选择创建或移除 Claude Code 托管文件"
+    Write-Info-Message "  (4) 同步客户端配置 — 根据选择创建或移除客户端托管文件"
     Write-Info-Message "  (5) 配置备份根目录"
     Write-Host ""
 
     if ($ModeChanged) {
-        Write-Info-Message "客户端模式已变化，自动同步 skills 目录"
+        Write-Info-Message "客户端模式已变化（$PreviousMode → $($script:ClientMode)），自动同步 skills 目录"
         Update-Skills -TargetDir $TargetDir
     } elseif (Invoke-PromptUser "Step (1/5): 是否更新 skills？（将覆盖现有 skill 文件）") {
         Update-Skills -TargetDir $TargetDir
@@ -1121,7 +1261,7 @@ function Update-Install {
     }
 
     Write-Info-Message "Step (4/5): 同步客户端配置"
-    Sync-ClaudeSupportFiles
+    Sync-ClientSupportFiles
 
     if (Invoke-PromptUser "Step (5/5): 是否修改备份根目录？") {
         Invoke-BackupConfig -TargetDir $TargetDir
@@ -1149,16 +1289,28 @@ function Write-CompletionMessage {
     Write-Host ""
     Write-Host "2. 启动 OpenCode："
     Write-Host "   opencode"
-    if ($script:EnableClaudeCode) {
-        Write-Host "   或启动 Claude Code："
-        Write-Host "   claude"
+    switch ($script:ClientMode) {
+        "claude" {
+            Write-Host "   或启动 Claude Code："
+            Write-Host "   claude"
+        }
+        "codex" {
+            Write-Host "   或启动 Codex："
+            Write-Host "   codex"
+        }
     }
     Write-Host ""
     Write-Host "3. 如果知识库已有文件，运行批量初始化："
-    Write-Host "   /wiki-init"
+    Write-Host "   OpenCode: /wiki-init"
+    switch ($script:ClientMode) {
+        "codex" { Write-Host "   Codex: `$wiki-init 或 /skills 选择 wiki-init" }
+    }
     Write-Host ""
     Write-Host "4. 或者添加新文件后运行增量处理："
-    Write-Host "   /wiki-ingest"
+    Write-Host "   OpenCode: /wiki-ingest"
+    switch ($script:ClientMode) {
+        "codex" { Write-Host "   Codex: `$wiki-ingest 或 /skills 选择 wiki-ingest" }
+    }
     Write-Host ""
     Write-Host "详细文档请参考 README.md"
 }
@@ -1209,12 +1361,18 @@ function Invoke-VisionReaderConfig {
     if ($Force) {
         Write-Info-Message "强制安装模式，跳过 vision-reader 交互配置"
         Write-Info-Message "稍后可手动运行: .\config_vision_reader.ps1 `"$TargetDir`""
+        if ($script:ClientMode -eq "codex") {
+            Write-Info-Message "Codex 版 vision-reader 已由安装器预生成（.codex\agents\vision-reader.toml）"
+        }
         return
     }
 
     Write-Host ""
-    if (-not (Invoke-PromptUser "是否配置 vision-reader subagent？（用于读取图片/幻灯片/PDF 等视觉内容）")) {
-        Write-Info-Message "已跳过 vision-reader 配置"
+    if ($script:ClientMode -eq "codex") {
+        Write-Info-Message "Codex 版 vision-reader 已由安装器预生成（.codex\agents\vision-reader.toml），不指定模型由 Codex 自动选择"
+    }
+    if (-not (Invoke-PromptUser "是否配置 OpenCode 版 vision-reader subagent？（用于在 OpenCode 中读取图片/幻灯片/PDF 等视觉内容）")) {
+        Write-Info-Message "已跳过 OpenCode 版 vision-reader 配置"
         return
     }
 
@@ -1225,7 +1383,7 @@ function Invoke-VisionReaderConfig {
     }
 
     Write-Host ""
-    Write-Info-Message "正在配置 vision-reader..."
+    Write-Info-Message "正在配置 OpenCode 版 vision-reader..."
     & $ConfigScript -TargetDir $TargetDir -Force
 }
 
@@ -1260,7 +1418,7 @@ if (Test-UpdateInstall -TargetDir $TargetDir) {
     New-OutputDirectory
     New-SkillsDirectory
     New-AgentsFile
-    Sync-ClaudeSupportFiles
+    Sync-ClientSupportFiles
 
     Invoke-BackupConfig -TargetDir $TargetDir
 
