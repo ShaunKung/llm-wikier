@@ -821,26 +821,26 @@ function Write-CodexVisionReader {
     $Content = @'
 # LLM-WIKIER:CODEX-AGENT-MANAGED
 name = "vision-reader"
-description = "读取图片、图表、截图、幻灯片、PDF 和文档排版等视觉元素,转化为文字描述"
+description = "读取图片、图表、截图、幻灯片、PDF 和文档排版等视觉元素，转化为文字描述"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-你是一个视觉内容读取器。你的职责是读取文件中的视觉元素(图片、图表、截图、幻灯片、页面排版等),并将视觉内容转化为文字描述。
+你是一个视觉内容读取器。你的职责是读取文件中的视觉元素（图片、图表、截图、幻灯片、页面排版等），并将视觉内容转化为文字描述。
 
 ## 核心职责
-- 只描述视觉元素(图片、图表、照片、插图、截图、幻灯片视觉内容、排版布局等)
+- 只描述视觉元素（图片、图表、照片、插图、截图、幻灯片视觉内容、排版布局等）
 - 不要重复已经由主 agent 处理的纯文本内容
-- **兜底规则**:如果发现文档中文本提取明显不完整(如幻灯片缺失文字、表格数据丢失、图表中的数据标签等),请一并补充关键文本信息
+- **兜底规则**：如果发现文档中文本提取明显不完整（如幻灯片缺失文字、表格数据丢失、图表中的数据标签等），请一并补充关键文本信息
 
 ## 输出格式
-对每个视觉元素:
+对每个视觉元素：
 
 ### [图片/图表/截图 序号]
 **类型**: [图表/照片/截图/插图/排版]
 **描述**: [视觉内容的文字描述]
 **关键信息**: [图表数据、照片中的人物/场景、截图中的UI元素、幻灯片主题等]
 
-主 agent 会通过文件路径告知你需要读取的文件,请直接读取并返回描述。
+主 agent 会通过文件路径告知你需要读取的文件，请直接读取并返回描述。
 """
 '@
 
@@ -1054,6 +1054,8 @@ function Set-HiddenAttributes {
             Join-Path $TargetDir ".wiki"
             Join-Path $TargetDir ".opencode"
             Join-Path $TargetDir ".claude"
+            Join-Path $TargetDir ".agents"
+            Join-Path $TargetDir ".codex"
         )
 
     foreach ($Dir in $Dirs) {
