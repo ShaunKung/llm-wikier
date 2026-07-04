@@ -32,7 +32,7 @@ if ($script:BackupRoot -eq "__BACKUP_ROOT__") {
 # === Validate KB directory ===
 if ([string]::IsNullOrEmpty($KbDir) -or -not (Test-Path $KbDir)) {
     Write-Host "[错误] 无法定位知识库目录。脚本不在预期的安装路径中。" -ForegroundColor Red
-    Write-Host "请使用 -Root 参数显式指定备份根目录，或确认脚本位于 .opencode\skills\wiki-backup\ 或 .claude\skills\wiki-backup\ 下"
+    Write-Host "请使用 -Root 参数显式指定备份根目录，或确认脚本位于 .opencode\skills\wiki-backup\、.claude\skills\wiki-backup\ 或 .agents\skills\wiki-backup\ 下"
     exit 1
 }
 

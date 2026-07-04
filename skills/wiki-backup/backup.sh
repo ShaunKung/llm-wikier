@@ -44,7 +44,7 @@ fi
 # === Validate KB directory ===
 if [[ ! -d "$KB_DIR" ]]; then
     print_error "无法定位知识库目录。脚本不在预期的安装路径中。"
-    echo "请使用 --root 参数显式指定备份根目录，或确认脚本位于 .opencode/skills/wiki-backup/ 或 .claude/skills/wiki-backup/ 下" >&2
+    echo "请使用 --root 参数显式指定备份根目录，或确认脚本位于 .opencode/skills/wiki-backup/、.claude/skills/wiki-backup/ 或 .agents/skills/wiki-backup/ 下" >&2
     exit 1
 fi
 
