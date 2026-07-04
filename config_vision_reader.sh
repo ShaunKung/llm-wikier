@@ -385,6 +385,8 @@ print_completion() {
     echo ""
     echo "配置完成后，使用知识库时 Agent 会自动在遇到视觉内容时调用 vision-reader。"
     echo ""
+    echo "注：本脚本仅配置 OpenCode 版 vision-reader。Claude Code 版（.claude/agents/vision-reader.md）与 Codex 版（.codex/agents/vision-reader.toml）由安装器在启用对应客户端支持时自动生成。"
+    echo ""
 }
 
 main() {
