@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-这是一个以 OpenCode 为主的 Agent Skills 工具包仓库，提供安装脚本将技能安装到任意**已有**的知识库目录。安装器可选启用 Claude Code 支持，同一个个人知识库可以被 OpenCode 和 Claude Code 混合使用。
+这是一个以 OpenCode 为主的 Agent Skills 工具包仓库，提供安装脚本将技能安装到任意**已有的**知识库目录。安装器可选启用 Claude Code 或 Codex 支持（二者互斥），同一个个人知识库可以被 OpenCode 与 Claude Code 或 OpenCode 与 Codex 混合使用。
 不是知识库本身——本仓库的 `templates/AGENTS.md.tmpl` 是知识库的 schema 模板。
 
 ## 文件约定
@@ -18,7 +18,7 @@
 ## 核心架构
 
 ```
-skills/                     ← 8 个 Agent Skills 定义（OpenCode-only 安装到 .opencode/skills/；混合模式安装到 .claude/skills/）
+skills/                     ← 8 个 Agent Skills 定义（OpenCode-only 安装到 .opencode/skills/；+Claude 模式安装到 .claude/skills/；+Codex 模式安装到 .agents/skills/）
   wiki-init/SKILL.md        ← 批量初始化 wiki
   wiki-ingest/SKILL.md      ← 增量入库（自动检测新文件）
   wiki-query/SKILL.md       ← 基于 wiki 问答
@@ -45,7 +45,7 @@ config_vision_reader.ps1    ← Windows vision-reader subagent 配置器
 name: wiki-xxx
 description: 中文功能描述（1-1024 字符）
 license: MIT
-compatibility: opencode, claude-code
+compatibility: opencode, claude-code, codex
 ---
 ```
 
@@ -58,22 +58,26 @@ compatibility: opencode, claude-code
 1. 验证目标目录存在
 2. 创建 `.wiki/`、`.wiki/index.md`、`.wiki/log.md`
 3. 创建 `.wiki/.wiki-processed`（JSON：`{"version":1,"entries":[]}`）
-4. 询问是否支持除 OpenCode 之外的其它客户端（当前仅 Claude Code；默认不启用）
+4. 询问是否支持除 OpenCode 之外的其它客户端（可选 Claude Code 或 Codex；二者互斥；默认不启用）
 5. OpenCode-only 模式复制 `skills/*` → 目标目录 `.opencode/skills/`
 6. OpenCode + Claude Code 混合模式复制 `skills/*` → 目标目录 `.claude/skills/`，并生成托管 `CLAUDE.md` 与 `.claude/agents/vision-reader.md`
-7. 从 `templates/AGENTS.md.tmpl` 生成目标 `AGENTS.md`，其中 `__WIKI_BACKUP_AUTO_COMMAND__` 必须替换为当前模式的 backup 脚本路径
-8. 输出完成提示
+7. OpenCode + Codex 混合模式复制 `skills/*` → 目标目录 `.agents/skills/`（OpenCode 与 Codex 均原生扫描此路径），并生成 `.codex/agents/vision-reader.toml`（无托管入口文件——Codex 原生读 AGENTS.md）
+8. 从 `templates/AGENTS.md.tmpl` 生成目标 `AGENTS.md`，其中 `__WIKI_BACKUP_AUTO_COMMAND__` 必须替换为当前模式的 backup 脚本路径
+9. 输出完成提示
 
-更新安装时必须支持双向模式切换：
-- OpenCode-only → 混合模式：安装 `.claude/skills/wiki-*`，移除 LLM Wikier 管理的 `.opencode/skills/wiki-*`
-- 混合模式 → OpenCode-only：安装 `.opencode/skills/wiki-*`，移除 LLM Wikier 管理的 `.claude/skills/wiki-*`、托管 `CLAUDE.md` 区块和托管 `.claude/agents/vision-reader.md`
-- 只删除 LLM Wikier 管理的 Claude Code 文件，不递归删除用户自定义 `.claude/` 内容
+更新安装时必须支持三模式间双向切换：
+- OpenCode-only → +Claude：安装 `.claude/skills/wiki-*`，移除 LLM Wikier 管理的 `.opencode/skills/wiki-*`
+- OpenCode-only → +Codex：安装 `.agents/skills/wiki-*`，移除 LLM Wikier 管理的 `.opencode/skills/wiki-*`
+- +Claude → OpenCode-only：安装 `.opencode/skills/wiki-*`，移除 LLM Wikier 管理的 `.claude/skills/wiki-*`、托管 `CLAUDE.md` 区块和托管 `.claude/agents/vision-reader.md`
+- +Codex → OpenCode-only：安装 `.opencode/skills/wiki-*`，移除 LLM Wikier 管理的 `.agents/skills/wiki-*` 和托管 `.codex/agents/vision-reader.toml`
+- +Claude ↔ +Codex：skills 在 `.claude/skills` 与 `.agents/skills` 间迁移，同时清理对应托管文件（`CLAUDE.md` 区块 + `.claude/agents/vision-reader.md` ↔ `.codex/agents/vision-reader.toml`）
+- 只删除 LLM Wikier 管理的 Claude Code / Codex 文件，不递归删除用户自定义 `.claude/`、`.codex/`、`.agents/` 内容
 
 **安装后的目标目录不包含本仓库的 `lib/`、`README.md`、`templates/`、`install.*`、`config_vision_reader.*`、`skills/` 源文件。**
 
 ## vision-reader subagent 配置脚本（config_vision_reader.sh/ps1）
 
-独立于 install.sh/ps1 的配置脚本，用于在目标 KB 的 `.opencode/agents/` 下生成 OpenCode 版 `vision-reader.md`。混合模式下 Claude Code 版 `.claude/agents/vision-reader.md` 由安装器生成，默认 `model: inherit`。
+独立于 install.sh/ps1 的配置脚本，用于在目标 KB 的 `.opencode/agents/` 下生成 OpenCode 版 `vision-reader.md`。+Claude 模式下 Claude Code 版 `.claude/agents/vision-reader.md` 由安装器生成，默认 `model: inherit`。+Codex 模式下 Codex 版 `.codex/agents/vision-reader.toml` 由安装器生成，不指定 `model`（由 Codex 自动选择），`sandbox_mode = "read-only"`，格式为 TOML（必填 `name`/`description`/`developer_instructions`）。
 
 两版脚本行为必须一致：
 1. 验证目标 KB 有效（`is_valid_kb_dir`）
@@ -126,7 +130,9 @@ install.sh/ps1 内置一份硬编码的默认 AGENTS.md（当 `templates/AGENTS.
 
 - **不要混淆 AGENTS.md**：仓库根目录的 AGENTS.md 是关于本工具包仓库的，`templates/AGENTS.md.tmpl` 是安装到目标知识库的模板
 - **不要混淆 8 个 skill**：wiki-ingest 是增量检测新文件，wiki-update 是重新处理已有文件，wiki-init 是一次性批量处理，wiki-capture 是从对话中抓取知识（不涉及文件），wiki-backup 是备份/恢复
-- **不要混淆 skill 和 subagent**：`skills/` 下的 SKILL.md 是给主 agent 加载的工作流指令；`vision-reader` 是客户端专属 subagent，OpenCode 路径为 `.opencode/agents/`，Claude Code 路径为 `.claude/agents/`
+- **不要混淆 skill 和 subagent**：`skills/` 下的 SKILL.md 是给主 agent 加载的工作流指令；`vision-reader` 是客户端专属 subagent，OpenCode 路径为 `.opencode/agents/`，Claude Code 路径为 `.claude/agents/`，Codex 路径为 `.codex/agents/`（TOML 格式）
+- **Codex skills 路径不是 `.codex/skills/`**：Codex 扫描 `.agents/skills/`（open agent skills 标准），与 OpenCode 的 agent-compatible 路径一致，故 +Codex 模式下两者共享 `.agents/skills/` 一份 skills
+- **Codex 仅在被显式要求时 spawn subagent**：与 OpenCode/Claude 不同，SKILL.md / AGENTS.md 的视觉处理指令须明确告知 Codex 主 agent "遇到视觉内容时 spawn `vision-reader` 自定义 agent 读取"
 - **`.wiki/.wiki-processed` 不是本仓库的文件**：它只存在于安装后的目标知识库中
 - **SKILL.md 中的 license: MIT 与仓库 License 不同是故意的**：skills 会被复制到用户的知识库目录
 - **vision-reader subagent 不是强制的**：如用户未配置，Agent 跳过视觉处理，仅处理文本内容
