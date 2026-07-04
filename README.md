@@ -1,6 +1,6 @@
 # LLM Wikier
 
-一个面向 OpenCode 的个人知识库工具包，用于构建和维护 LLM 驱动的 Wiki 知识库。安装时可选启用 Claude Code 支持，同一个个人知识库可以被 OpenCode 和 Claude Code 混合使用。
+一个以 OpenCode 为主的个人知识库工具包，用于构建和维护 LLM 驱动的 Wiki 知识库。安装时可选启用 Claude Code 或 Codex 支持（二者互斥），同一个个人知识库可以被 OpenCode 与 Claude Code 或 OpenCode 与 Codex 混合使用。
 
 该项目受 Andrej Karpathy 的 [llm-wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 启发而开发。
 
@@ -37,7 +37,7 @@
 ### 前置要求
 
 - [OpenCode](https://opencode.ai) 已安装
-- 如需混合使用：[Claude Code](https://docs.anthropic.com/en/docs/claude-code) 已安装
+- 如需混合使用：[Claude Code](https://docs.anthropic.com/en/docs/claude-code) 或 [OpenAI Codex CLI](https://developers.openai.com/codex) 已安装
 - 已有一个知识库文件夹（可包含多层子目录和现有文件）
 
 ### Mac / Linux
@@ -54,7 +54,7 @@ chmod +x install.sh
 ./install.sh /path/to/your/knowledge-base
 ```
 
-安装过程中会询问是否需要支持除 OpenCode 之外的其它客户端。当前可选客户端为 Claude Code，默认不启用，保持 OpenCode-only 模式。
+安装过程中会询问是否需要支持除 OpenCode 之外的其它客户端。当前可选 Claude Code 或 Codex（二者互斥），默认不启用，保持 OpenCode-only 模式。
 
 ### Windows (PowerShell)
 
@@ -67,7 +67,7 @@ cd llm-wikier
 .\install.ps1 "C:\path\to\your\knowledge-base"
 ```
 
-PowerShell 安装器与 Mac/Linux 安装器行为一致，也会在安装或更新时询问是否启用 Claude Code 支持。
+PowerShell 安装器与 Mac/Linux 安装器行为一致，也会在安装或更新时询问是否启用 Claude Code 或 Codex 支持。
 
 ### 客户端模式
 
@@ -75,18 +75,21 @@ PowerShell 安装器与 Mac/Linux 安装器行为一致，也会在安装或更�
 |------|------|----------------|------|
 | OpenCode-only | 不启用其它客户端 | `.opencode/skills/wiki-*` | 当前默认方案，主要服务 OpenCode |
 | OpenCode + Claude Code | 启用 Claude Code | `.claude/skills/wiki-*` | Claude Code 原生读取 `.claude/skills`；OpenCode 通过 Claude-compatible skill discovery 读取同一份 skills |
+| OpenCode + Codex | 启用 Codex | `.agents/skills/wiki-*` | Codex 原生读取 `.agents/skills`（open agent skills 标准）；OpenCode 通过 agent-compatible skill discovery 读取同一份 skills |
 
-混合模式不会复制两份 skills，也不会创建软链接，避免 OpenCode 同时发现 `.opencode/skills` 和 `.claude/skills` 中的同名 skill。
+Claude Code 和 Codex 互斥：知识库启用 Codex 时关闭 Claude Code 支持，但 OpenCode 始终保留。混合模式不会复制两份 skills，也不会创建软链接，避免 OpenCode 同时发现 `.opencode/skills`、`.claude/skills`、`.agents/skills` 中的同名 skill。
 
 ### 更新安装与模式切换
 
 对已安装的知识库再次运行安装脚本会进入更新安装模式：
 
 - 已支持 Claude Code 的知识库，默认继续支持 Claude Code
-- 未支持 Claude Code 的知识库，默认保持 OpenCode-only
-- 从 OpenCode-only 切换到混合模式时，LLM Wikier 管理的 `wiki-*` skills 会从 `.opencode/skills` 切换到 `.claude/skills`
-- 从混合模式切回 OpenCode-only 时，LLM Wikier 管理的 `wiki-*` skills 会回到 `.opencode/skills`，并移除 LLM Wikier 托管的 Claude Code 配置
-- 安装器只移除 LLM Wikier 管理的 `.claude/skills/wiki-*`、托管 `CLAUDE.md` 区块和托管 `vision-reader`，不会递归删除用户自己的 `.claude/` 内容
+- 已支持 Codex 的知识库，默认继续支持 Codex
+- 未支持其它客户端的知识库，默认保持 OpenCode-only
+- 任意两种模式间可双向切换；切换时 LLM Wikier 管理的 `wiki-*` skills 会从旧目录迁移到新目录
+- 切换到 OpenCode-only 时，移除 LLM Wikier 托管的 Claude Code 和 Codex 配置
+- Claude ↔ Codex 切换：skills 在 `.claude/skills` 与 `.agents/skills` 间迁移，同时清理对应托管文件（CLAUDE.md 区块 / `.claude/agents/vision-reader.md` ↔ `.codex/agents/vision-reader.toml`）
+- 安装器只移除 LLM Wikier 管理的 `.claude/`、`.codex/`、`.agents/` 中的托管文件，不会递归删除用户自定义内容
 
 ## 安装后的目录结构
 
@@ -150,6 +153,32 @@ PowerShell 安装器与 Mac/Linux 安装器行为一致，也会在安装或更�
 └── [原有的 raw sources]         # 保持不变
 ```
 
+### OpenCode + Codex 模式
+
+```
+<知识库根目录>/
+├── AGENTS.md                    # Schema 配置文件，OpenCode 和 Codex 同时原生读取（无需托管入口）
+├── .wiki_ignore                 # 文件排除规则（类 .gitignore）
+├── output/                      # 用户自产文件目录（不会被 ingest）
+├── .wiki/
+│   ├── index.md
+│   ├── log.md
+│   └── .wiki-processed
+├── .agents/skills/              # 唯一 LLM Wikier skills 目录（OpenCode 与 Codex 共享）
+│   ├── wiki-init/SKILL.md
+│   ├── wiki-ingest/SKILL.md
+│   ├── wiki-query/SKILL.md
+│   ├── wiki-lint/SKILL.md
+│   ├── wiki-update/SKILL.md
+│   ├── wiki-prune/SKILL.md
+│   ├── wiki-capture/SKILL.md
+│   └── wiki-backup/
+├── .codex/agents/
+│   └── vision-reader.toml       # Codex 视觉读取 subagent（安装器托管）
+└── .opencode/agents/            # OpenCode vision-reader 配置（可选，由 config_vision_reader 生成）
+    └── vision-reader.md
+```
+
 ## 使用方法
 
 ### 1. 初始化 Wiki
@@ -162,11 +191,21 @@ PowerShell 安装器与 Mac/Linux 安装器行为一致，也会在安装或更�
 
 这样 wiki-init 生成的内容将更贴合你的实际需求。
 
-完成配置后，在 OpenCode 或 Claude Code 中运行批量构建：
+完成配置后，在 OpenCode、Claude Code 或 Codex 中运行批量构建：
+
+OpenCode / Claude Code：
 
 ```
 /wiki-init
 ```
+
+Codex：
+
+```
+$wiki-init
+```
+
+（或在 Codex 中通过 `/skills` 选择器选择 `wiki-init` skill）
 
 这将处理所有 raw sources 并构建初始 wiki。
 
@@ -238,7 +277,7 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
 
 配置完成后，使用知识库时 Agent 会在遇到视觉内容时自动调用 `vision-reader` 读取。
 
-混合模式下，安装器会自动生成 Claude Code 版 `.claude/agents/vision-reader.md`。如果也希望 OpenCode 使用专门的视觉 subagent，仍可运行上述 `config_vision_reader` 脚本，它会生成 `.opencode/agents/vision-reader.md`。
+混合模式下（Claude Code），安装器会自动生成 Claude Code 版 `.claude/agents/vision-reader.md`。Codex 模式下，安装器会自动生成 Codex 版 `.codex/agents/vision-reader.toml`（不指定 `model`，由 Codex 自动选择；`sandbox_mode = "read-only"`；Codex 仅在被显式要求时 spawn subagent）。如果也希望 OpenCode 使用专门的视觉 subagent，仍可运行上述 `config_vision_reader` 脚本，它会生成 `.opencode/agents/vision-reader.md`。
 
 ### 工作原理
 
@@ -270,6 +309,8 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
 |--------|------|
 | `.opencode/` | Skills 配置目录 |
 | `.claude/` | Claude Code 配置目录（启用 Claude Code 支持时） |
+| `.agents/` | 共享 skills 配置目录（启用 Codex 支持时） |
+| `.codex/` | Codex 配置目录（启用 Codex 支持时） |
 | `.wiki/` | Wiki 内容本身 |
 | `.git/` | 版本控制 |
 | `AGENTS.md` | 知识库配置文件 |
@@ -290,8 +331,9 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
 |------|----------------------|--------------------|
 | OpenCode-only | `bash .opencode/skills/wiki-backup/backup.sh --auto` | `powershell -NoProfile -ExecutionPolicy Bypass -File .opencode\skills\wiki-backup\backup.ps1 -Auto` |
 | OpenCode + Claude Code | `bash .claude/skills/wiki-backup/backup.sh --auto` | `powershell -NoProfile -ExecutionPolicy Bypass -File .claude\skills\wiki-backup\backup.ps1 -Auto` |
+| OpenCode + Codex | `bash .agents/skills/wiki-backup/backup.sh --auto` | `powershell -NoProfile -ExecutionPolicy Bypass -File .agents\skills\wiki-backup\backup.ps1 -Auto` |
 
-备份范围包括 `.wiki/`、`AGENTS.md`、`.wiki_ignore`，混合模式下还会在存在时包含 `CLAUDE.md`。不会备份整个 `.opencode/` 或 `.claude/`，这些工具配置可通过重新运行安装器恢复，且可能包含用户自定义配置。
+备份范围包括 `.wiki/`、`AGENTS.md`、`.wiki_ignore`，Claude 模式下还会在存在时包含 `CLAUDE.md`。Codex 模式无托管入口文件，备份范围不包含 `CLAUDE.md`。不会备份整个 `.opencode/`、`.claude/`、`.agents/` 或 `.codex/`，这些工具配置可通过重新运行安装器恢复，且可能包含用户自定义配置。
 
 ## 原理说明
 
