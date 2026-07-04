@@ -625,9 +625,9 @@ create_agents_file() {
 
 **Markdown**：文本优先，按需读取图片
 
-如当前客户端未配置 `vision-reader`，Agent 跳过视觉处理。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
+如当前客户端未配置 `vision-reader`，Agent 跳过视觉处理。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`，Codex 配置路径为 `.codex/agents/vision-reader.toml`。
 
-OpenCode 配置方式：`./config_vision_reader.sh <知识库路径>`。启用 Claude Code 支持时，安装器会生成 Claude Code 版 `vision-reader`。
+OpenCode 配置方式：`./config_vision_reader.sh <知识库路径>`。启用 Claude Code 支持时安装器生成 Claude Code 版 `vision-reader`；启用 Codex 支持时安装器生成 Codex 版 `vision-reader`（不指定 model，由 Codex 自动选择）。
 
 ## 文件排除规则
 
@@ -637,6 +637,8 @@ OpenCode 配置方式：`./config_vision_reader.sh <知识库路径>`。启用 C
 ### 默认排除项
 - `.opencode/` — skills 配置目录
 - `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
+- `.agents/` — 共享 skills 配置目录（仅启用 Codex 支持时）
+- `.codex/` — Codex 配置目录（仅启用 Codex 支持时）
 - `.wiki/` — wiki 内容本身
 - `.wiki/cache/` — 链接文档缓存（不计入备份）
 - `.git/` — 版本控制
@@ -1225,7 +1227,7 @@ update_agents_file() {
 
 **Markdown**：文本优先，按需读取图片
 
-如当前客户端未配置 `vision-reader`，Agent 跳过视觉处理。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
+如当前客户端未配置 `vision-reader`，Agent 跳过视觉处理。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`，Codex 配置路径为 `.codex/agents/vision-reader.toml`。
 
 ## 文件排除规则
 
@@ -1235,6 +1237,8 @@ update_agents_file() {
 ### 默认排除项
 - `.opencode/` — skills 配置目录
 - `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
+- `.agents/` — 共享 skills 配置目录（仅启用 Codex 支持时）
+- `.codex/` — Codex 配置目录（仅启用 Codex 支持时）
 - `.wiki/` — wiki 内容本身
 - `.wiki/cache/` — 链接文档缓存（不计入备份）
 - `.git/` — 版本控制
