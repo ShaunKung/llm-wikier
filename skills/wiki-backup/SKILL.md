@@ -7,12 +7,13 @@ compatibility: opencode, claude-code, codex
 
 ## 功能说明
 
-`wiki-backup` 提供知识库数据的备份和恢复能力。备份范围包括 `.wiki/`（排除 `.wiki/cache/` 缓存目录及其中的 `.meta.json` 元数据文件）、`AGENTS.md`、`CLAUDE.md`（如存在）、`.wiki_ignore`。
+`wiki-backup` 提供知识库数据的备份和恢复能力。备份范围包括 `.wiki/`（排除 `.wiki/cache/` 缓存目录及其中的 `.meta.json` 元数据文件）、`AGENTS.md`、`CLAUDE.md`（仅 Claude 模式，如存在）、`.wiki_ignore`。Codex 模式无托管入口文件，备份范围不包含 `CLAUDE.md`。
 
 备份由独立的 `backup.sh`（Linux/Mac）或 `backup.ps1`（Windows）脚本执行，位于当前安装模式的 skills 目录下：
 
 - OpenCode-only 模式：`.opencode/skills/wiki-backup/`
 - OpenCode + Claude Code 模式：`.claude/skills/wiki-backup/`
+- OpenCode + Codex 模式：`.agents/skills/wiki-backup/`
 
 **注意**：会话启动时的自动备份由 AGENTS.md 指令控制，agent 直接调用脚本，不加载本 skill。
 
@@ -30,6 +31,12 @@ OpenCode + Claude Code 模式：
 
 ```bash
 bash .claude/skills/wiki-backup/backup.sh
+```
+
+OpenCode + Codex 模式：
+
+```bash
+bash .agents/skills/wiki-backup/backup.sh
 ```
 
 或强制备份（即使当天已备份过）：
@@ -94,12 +101,12 @@ bash <当前 skills 目录>/wiki-backup/backup.sh --manual
    Expand-Archive -Path "2026-05-23_14-30_my-kb.zip" -DestinationPath "C:\path\to\knowledge-base" -Force
    ```
 
-5. 验证 `.wiki/`、`AGENTS.md`、`CLAUDE.md`（如备份中存在）、`.wiki_ignore` 已正确恢复
+5. 验证 `.wiki/`、`AGENTS.md`、`CLAUDE.md`（仅 Claude 模式，如备份中存在）、`.wiki_ignore` 已正确恢复
 6. 确认无误后，删除步骤 3 中创建的备份目录
 
 ### 注意事项
 
-- 恢复仅覆盖 `.wiki/`、`AGENTS.md`、`CLAUDE.md`、`.wiki_ignore`，不影响知识库中其他文件
+- 恢复仅覆盖 `.wiki/`、`AGENTS.md`、`CLAUDE.md`（如备份中存在）、`.wiki_ignore`，不影响知识库中其他文件
 - 恢复后建议运行 `/wiki-lint` 检查 wiki 健康状态
 - 如需回退到更早的版本，重复上述步骤选择对应日期的备份文件即可
 

@@ -65,7 +65,7 @@ compatibility: opencode, claude-code, codex
 - 办公文档/网页：两段式处理（Read 取文本 + vision-reader 取视觉）
 - Markdown 文件：文本优先，按需读取图片
 
-如果当前客户端未配置 `vision-reader` subagent，则跳过视觉读取，仅处理文本内容。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
+如果当前客户端未配置 `vision-reader` subagent，则跳过视觉读取，仅处理文本内容。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`，Codex 配置路径为 `.codex/agents/vision-reader.toml`。
 
 详细流程参见 `wiki-ingest` skill 的「视觉内容处理策略」章节。
 
