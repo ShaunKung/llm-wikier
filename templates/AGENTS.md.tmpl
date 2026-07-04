@@ -82,9 +82,13 @@
 
 ### vision-reader 配置
 
-如当前客户端未配置 `vision-reader`，Agent 应跳过视觉处理，仅处理文本内容。OpenCode 配置路径为 `.opencode/agents/vision-reader.md`，Claude Code 配置路径为 `.claude/agents/vision-reader.md`。
+如当前客户端未配置 `vision-reader`，Agent 应跳过视觉处理，仅处理文本内容。各客户端配置路径：
 
-配置方式：使用 LLM Wikier 提供的 `config_vision_reader` 脚本配置 OpenCode subagent；启用 Claude Code 支持时安装器会生成 Claude Code 版 `vision-reader`。
+- OpenCode：`.opencode/agents/vision-reader.md`
+- Claude Code：`.claude/agents/vision-reader.md`
+- Codex：`.codex/agents/vision-reader.toml`
+
+配置方式：使用 LLM Wikier 提供的 `config_vision_reader` 脚本配置 OpenCode subagent；启用 Claude Code 支持时安装器会生成 Claude Code 版 `vision-reader`（`model: inherit`）；启用 Codex 支持时安装器会生成 Codex 版 `vision-reader`（`.codex/agents/vision-reader.toml`，不指定 `model` 由 Codex 自动选择，`sandbox_mode = "read-only"`）。Codex 仅在被显式要求时 spawn subagent，故 SKILL.md 视觉处理指令须明确告知 Codex 主 agent "遇到视觉内容时 spawn `vision-reader` 自定义 agent 读取"。
 
 ## 文件排除规则
 
@@ -94,6 +98,8 @@
 ### 默认排除项
 - `.opencode/` — skills 配置目录
 - `.claude/` — Claude Code 配置目录（仅启用 Claude Code 支持时）
+- `.agents/` — 共享 skills 配置目录（仅启用 Codex 支持时）
+- `.codex/` — Codex 配置目录（仅启用 Codex 支持时）
 - `.wiki/` — wiki 内容本身
 - `.wiki/cache/` — 链接文档缓存（不计入备份）
 - `.git/` — 版本控制
@@ -124,7 +130,7 @@ Agent 应在所有对话中主动感知用户提供的新知识，无需等待�
 - **冲突必问**：如新知识与 wiki 已有内容冲突，必须暂停并请用户裁决
 - **不重复捕获**：同一会话中已提议过的内容不再重复提议
 - **安静失败**：如用户忽略或拒绝，不反复追问
-- **基础设施内容除外**：来自 `.opencode/skills/` 或 `.claude/skills/` 的 SKILL.md 定义、Agent 对系统功能的解释性输出等基础设施/元内容不属于捕获对象
+- **基础设施内容除外**：来自 \`.opencode/skills/\`、\`.claude/skills/\` 或 \`.agents/skills/\` 的 SKILL.md 定义、Agent 对系统功能的解释性输出等基础设施/元内容不属于捕获对象
 
 ### 内容域边界
 
@@ -133,7 +139,7 @@ wiki-capture 仅应捕获用户个人知识域的内容（Layer 2）：
 - 用户提供的实体或概念信息
 
 以下内容不应被视为捕获对象：
-- 来自 `.opencode/skills/` 或 `.claude/skills/` 的 SKILL.md 定义
+- 来自 \`.opencode/skills/\`、\`.claude/skills/\` 或 \`.agents/skills/\` 的 SKILL.md 定义
 - Agent 对知识库功能或流程的解释
 - 任何关于知识库工具本身的话题（安装、配置、维护）
 
