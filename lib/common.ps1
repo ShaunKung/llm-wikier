@@ -129,7 +129,7 @@ function Test-ExcludeDir {
     
     $DirName = Split-Path $Dir -Leaf
     
-    $ExcludeDirs = @("wiki", ".wiki", ".opencode", ".claude", ".git", "node_modules", ".venv", "__pycache__", ".idea", ".vscode")
+    $ExcludeDirs = @("wiki", ".wiki", ".opencode", ".claude", ".agents", ".codex", ".git", "node_modules", ".venv", "__pycache__", ".idea", ".vscode")
     
     return $ExcludeDirs -contains $DirName
 }
