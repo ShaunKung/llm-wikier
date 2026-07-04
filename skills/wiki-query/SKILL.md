@@ -2,7 +2,7 @@
 name: wiki-query
 description: 基于知识库 wiki 内容回答用户问题，支持将重要答案沉淀为新页面
 license: MIT
-compatibility: opencode, claude-code
+compatibility: opencode, claude-code, codex
 ---
 
 ## 功能说明

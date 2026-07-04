@@ -2,7 +2,7 @@
 name: wiki-init
 description: 批量处理知识库中所有 raw sources 文件，构建初始 wiki 知识库
 license: MIT
-compatibility: opencode, claude-code
+compatibility: opencode, claude-code, codex
 ---
 
 ## 功能说明

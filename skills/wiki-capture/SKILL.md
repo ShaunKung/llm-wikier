@@ -2,7 +2,7 @@
 name: wiki-capture
 description: 从对话中主动抓取用户提供的新知识，检测与现有 wiki 内容的冲突并邀请用户裁决
 license: MIT
-compatibility: opencode, claude-code
+compatibility: opencode, claude-code, codex
 ---
 
 ## 功能说明

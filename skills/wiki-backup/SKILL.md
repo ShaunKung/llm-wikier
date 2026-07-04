@@ -2,7 +2,7 @@
 name: wiki-backup
 description: 个人知识库自动/手动备份与恢复
 license: MIT
-compatibility: opencode, claude-code
+compatibility: opencode, claude-code, codex
 ---
 
 ## 功能说明

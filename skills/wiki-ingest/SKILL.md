@@ -2,7 +2,7 @@
 name: wiki-ingest
 description: 增量处理新添加到知识库的 raw source 文件，自动检测或手动指定
 license: MIT
-compatibility: opencode, claude-code
+compatibility: opencode, claude-code, codex
 ---
 
 ## 功能说明

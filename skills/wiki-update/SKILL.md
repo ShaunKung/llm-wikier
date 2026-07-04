@@ -2,7 +2,7 @@
 name: wiki-update
 description: 重新处理指定的已处理源文件，当源文件内容更新时使用
 license: MIT
-compatibility: opencode, claude-code
+compatibility: opencode, claude-code, codex
 ---
 
 ## 功能说明

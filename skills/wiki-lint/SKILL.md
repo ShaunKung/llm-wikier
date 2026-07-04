@@ -2,7 +2,7 @@
 name: wiki-lint
 description: 检查知识库 wiki 的健康状态，发现矛盾、孤立页面、缺失链接等问题
 license: MIT
-compatibility: opencode, claude-code
+compatibility: opencode, claude-code, codex
 ---
 
 ## 功能说明
