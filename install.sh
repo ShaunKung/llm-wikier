@@ -12,10 +12,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-ENABLE_CLAUDE_CODE=false
+CLIENT_MODE="opencode"
 LLM_WIKIER_SKILLS=("wiki-init" "wiki-ingest" "wiki-query" "wiki-lint" "wiki-update" "wiki-prune" "wiki-capture" "wiki-backup")
 CLAUDE_MANAGED_BEGIN="<!-- LLM-WIKIER:CLAUDE-MANAGED:BEGIN -->"
 CLAUDE_MANAGED_END="<!-- LLM-WIKIER:CLAUDE-MANAGED:END -->"
+CODEX_AGENT_MANAGED="LLM-WIKIER:CODEX-AGENT-MANAGED"
 
 print_error() {
     echo -e "${RED}[错误]${NC} $1"
@@ -101,7 +102,7 @@ is_update_install() {
 
     local key_skills=("wiki-ingest" "wiki-lint" "wiki-query")
     local skills_root
-    for skills_root in "$target/.opencode/skills" "$target/.claude/skills"; do
+    for skills_root in "$target/.opencode/skills" "$target/.claude/skills" "$target/.agents/skills"; do
         local found=true
         for skill in "${key_skills[@]}"; do
             if [[ ! -f "$skills_root/$skill/SKILL.md" ]]; then
@@ -126,40 +127,85 @@ has_claude_code_support() {
     return 1
 }
 
+has_codex_support() {
+    local target="$1"
+
+    [[ -f "$target/.agents/skills/wiki-ingest/SKILL.md" ]] && return 0
+    if [[ -f "$target/.codex/agents/vision-reader.toml" ]] && grep -q "$CODEX_AGENT_MANAGED" "$target/.codex/agents/vision-reader.toml"; then
+        return 0
+    fi
+
+    return 1
+}
+
+detect_current_mode() {
+    local target="$1"
+
+    if has_codex_support "$target"; then
+        echo "codex"
+    elif has_claude_code_support "$target"; then
+        echo "claude"
+    else
+        echo "opencode"
+    fi
+}
+
 select_client_support() {
     local target="$1"
     local update_mode="$2"
 
     if [[ "$FORCE" == "true" ]]; then
-        if [[ "$update_mode" == "true" ]] && has_claude_code_support "$target"; then
-            ENABLE_CLAUDE_CODE=true
+        if [[ "$update_mode" == "true" ]]; then
+            CLIENT_MODE=$(detect_current_mode "$target")
         else
-            ENABLE_CLAUDE_CODE=false
+            CLIENT_MODE="opencode"
         fi
         return 0
     fi
 
     echo ""
-    if [[ "$update_mode" == "true" ]] && has_claude_code_support "$target"; then
-        if prompt_user "检测到当前知识库已支持 Claude Code，是否继续支持？"; then
-            ENABLE_CLAUDE_CODE=true
-        else
-            ENABLE_CLAUDE_CODE=false
-        fi
-    else
-        echo -e "${YELLOW}[询问]${NC} 是否需要支持除 OpenCode 之外的其它客户端？当前可选：Claude Code [y/N] "
+    if [[ "$update_mode" == "true" ]]; then
+        local current_mode
+        current_mode=$(detect_current_mode "$target")
+        case "$current_mode" in
+            claude) print_info "检测到当前知识库已支持 Claude Code" ;;
+            codex)  print_info "检测到当前知识库已支持 Codex" ;;
+            *)      print_info "检测到当前知识库为 OpenCode-only" ;;
+        esac
+        echo -e "${YELLOW}[询问]${NC} 选择客户端模式："
+        echo "  1) 保持不变（$current_mode）"
+        echo "  2) OpenCode + Codex"
+        echo "  3) OpenCode + Claude Code"
+        echo "  4) 仅 OpenCode（移除其他支持）"
         read -r response
         case "$response" in
-            [yY]|[yY][eE][sS]) ENABLE_CLAUDE_CODE=true ;;
-            *) ENABLE_CLAUDE_CODE=false ;;
+            1|"") CLIENT_MODE="$current_mode" ;;
+            2) CLIENT_MODE="codex" ;;
+            3) CLIENT_MODE="claude" ;;
+            4) CLIENT_MODE="opencode" ;;
+            *)
+                print_warning "无效选择，保持当前模式"
+                CLIENT_MODE="$current_mode"
+                ;;
+        esac
+    else
+        echo -e "${YELLOW}[询问]${NC} 是否需要支持除 OpenCode 之外的其它客户端？"
+        echo "  1) 仅 OpenCode（默认）"
+        echo "  2) OpenCode + Claude Code"
+        echo "  3) OpenCode + Codex"
+        read -r response
+        case "$response" in
+            2) CLIENT_MODE="claude" ;;
+            3) CLIENT_MODE="codex" ;;
+            *) CLIENT_MODE="opencode" ;;
         esac
     fi
 
-    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
-        print_info "客户端模式: OpenCode + Claude Code"
-    else
-        print_info "客户端模式: OpenCode-only"
-    fi
+    case "$CLIENT_MODE" in
+        claude) print_info "客户端模式: OpenCode + Claude Code" ;;
+        codex)  print_info "客户端模式: OpenCode + Codex" ;;
+        *)      print_info "客户端模式: OpenCode-only" ;;
+    esac
 }
 
 # === Prompt user ===
@@ -182,29 +228,29 @@ prompt_user() {
 get_active_skills_dir() {
     local target="$1"
 
-    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
-        echo "$target/.claude/skills"
-    else
-        echo "$target/.opencode/skills"
-    fi
+    case "$CLIENT_MODE" in
+        claude) echo "$target/.claude/skills" ;;
+        codex)  echo "$target/.agents/skills" ;;
+        *)      echo "$target/.opencode/skills" ;;
+    esac
 }
 
-get_inactive_skills_dir() {
+get_inactive_skills_dirs() {
     local target="$1"
 
-    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
-        echo "$target/.opencode/skills"
-    else
-        echo "$target/.claude/skills"
-    fi
+    case "$CLIENT_MODE" in
+        claude) echo "$target/.opencode/skills"; echo "$target/.agents/skills" ;;
+        codex)  echo "$target/.opencode/skills"; echo "$target/.claude/skills" ;;
+        *)      echo "$target/.claude/skills";   echo "$target/.agents/skills" ;;
+    esac
 }
 
 get_backup_auto_command() {
-    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
-        echo "bash .claude/skills/wiki-backup/backup.sh --auto"
-    else
-        echo "bash .opencode/skills/wiki-backup/backup.sh --auto"
-    fi
+    case "$CLIENT_MODE" in
+        claude) echo "bash .claude/skills/wiki-backup/backup.sh --auto" ;;
+        codex)  echo "bash .agents/skills/wiki-backup/backup.sh --auto" ;;
+        *)      echo "bash .opencode/skills/wiki-backup/backup.sh --auto" ;;
+    esac
 }
 
 get_existing_backup_root() {
@@ -213,8 +259,10 @@ get_existing_backup_root() {
     local files=(
         "$target/.opencode/skills/wiki-backup/backup.sh"
         "$target/.claude/skills/wiki-backup/backup.sh"
+        "$target/.agents/skills/wiki-backup/backup.sh"
         "$target/.opencode/skills/wiki-backup/backup.ps1"
         "$target/.claude/skills/wiki-backup/backup.ps1"
+        "$target/.agents/skills/wiki-backup/backup.ps1"
     )
 
     for file in "${files[@]}"; do
@@ -378,11 +426,15 @@ check_existing_installation() {
     local agents_file="$TARGET_DIR/AGENTS.md"
     local skills_dir="$TARGET_DIR/.opencode/skills"
     local claude_managed=false
+    local codex_managed=false
     if has_claude_code_support "$TARGET_DIR"; then
         claude_managed=true
     fi
+    if has_codex_support "$TARGET_DIR"; then
+        codex_managed=true
+    fi
     
-    if [[ -d "$wiki_dir" || -d "$old_wiki_dir" || -f "$agents_file" || -d "$skills_dir" || "$claude_managed" == "true" ]]; then
+    if [[ -d "$wiki_dir" || -d "$old_wiki_dir" || -f "$agents_file" || -d "$skills_dir" || "$claude_managed" == "true" || "$codex_managed" == "true" ]]; then
         if [[ "$FORCE" == "true" ]]; then
             print_warning "检测到已有安装，将强制覆盖"
         else
@@ -456,12 +508,13 @@ create_wiki_ignore_file() {
     cat > "$ignore_file" << EOF
 # LLM Wikier — 默认排除规则（由工具包管理，请勿修改此区域）
 .opencode/
-$(if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then echo ".claude/"; fi)
+$(if [[ "$CLIENT_MODE" == "claude" ]]; then echo ".claude/"; fi)
+$(if [[ "$CLIENT_MODE" == "codex" ]]; then echo ".agents/"; echo ".codex/"; fi)
 .wiki/
 .wiki/cache/
 .git/
 AGENTS.md
-$(if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then echo "CLAUDE.md"; fi)
+$(if [[ "$CLIENT_MODE" == "claude" ]]; then echo "CLAUDE.md"; fi)
 output/
 
 # ——— 用户自定义规则（添加在此区域下方） ———
@@ -485,8 +538,6 @@ create_output_directory() {
 create_skills_directory() {
     local skills_dir
     skills_dir=$(get_active_skills_dir "$TARGET_DIR")
-    local inactive_skills_dir
-    inactive_skills_dir=$(get_inactive_skills_dir "$TARGET_DIR")
     
     mkdir -p "$skills_dir"
 
@@ -503,7 +554,10 @@ create_skills_directory() {
         fi
     done
 
-    remove_managed_skills_from_dir "$inactive_skills_dir"
+    local inactive_dir
+    while IFS= read -r inactive_dir; do
+        remove_managed_skills_from_dir "$inactive_dir"
+    done < <(get_inactive_skills_dirs "$TARGET_DIR")
 }
 
 create_agents_file() {
@@ -745,14 +799,75 @@ remove_claude_vision_reader() {
     fi
 }
 
-sync_claude_support_files() {
-    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
-        write_claude_file
-        write_claude_vision_reader
-    else
-        remove_claude_file_managed_block
-        remove_claude_vision_reader
+write_codex_vision_reader() {
+    local agent_dir="$TARGET_DIR/.codex/agents"
+    local agent_file="$agent_dir/vision-reader.toml"
+
+    if [[ -f "$agent_file" ]] && ! grep -q "$CODEX_AGENT_MANAGED" "$agent_file"; then
+        print_info "保留用户自定义 Codex vision-reader: $agent_file"
+        return 0
     fi
+
+    mkdir -p "$agent_dir"
+    cat > "$agent_file" << 'EOF'
+# LLM-WIKIER:CODEX-AGENT-MANAGED
+name = "vision-reader"
+description = "读取图片、图表、截图、幻灯片、PDF 和文档排版等视觉元素，转化为文字描述"
+sandbox_mode = "read-only"
+
+developer_instructions = """
+你是一个视觉内容读取器。你的职责是读取文件中的视觉元素（图片、图表、截图、幻灯片、页面排版等），并将视觉内容转化为文字描述。
+
+## 核心职责
+- 只描述视觉元素（图片、图表、照片、插图、截图、幻灯片视觉内容、排版布局等）
+- 不要重复已经由主 agent 处理的纯文本内容
+- **兜底规则**：如果发现文档中文本提取明显不完整（如幻灯片缺失文字、表格数据丢失、图表中的数据标签等），请一并补充关键文本信息
+
+## 输出格式
+对每个视觉元素：
+
+### [图片/图表/截图 序号]
+**类型**: [图表/照片/截图/插图/排版]
+**描述**: [视觉内容的文字描述]
+**关键信息**: [图表数据、照片中的人物/场景、截图中的UI元素、幻灯片主题等]
+
+主 agent 会通过文件路径告知你需要读取的文件，请直接读取并返回描述。
+"""
+EOF
+    print_success "已配置 Codex vision-reader: $agent_file"
+}
+
+remove_codex_vision_reader() {
+    local agent_file="$TARGET_DIR/.codex/agents/vision-reader.toml"
+    [[ ! -f "$agent_file" ]] && return 0
+    if grep -q "$CODEX_AGENT_MANAGED" "$agent_file"; then
+        rm -f "$agent_file"
+        rmdir "$TARGET_DIR/.codex/agents" 2>/dev/null || true
+        rmdir "$TARGET_DIR/.codex" 2>/dev/null || true
+        print_success "已移除 LLM Wikier 托管的 Codex vision-reader"
+    else
+        print_info "保留用户自定义 Codex vision-reader"
+    fi
+}
+
+sync_client_support_files() {
+    case "$CLIENT_MODE" in
+        claude)
+            write_claude_file
+            write_claude_vision_reader
+            remove_codex_vision_reader
+            ;;
+        codex)
+            write_codex_vision_reader
+            remove_claude_file_managed_block
+            remove_claude_vision_reader
+            ;;
+        *)
+            remove_claude_file_managed_block
+            remove_claude_vision_reader
+            remove_codex_vision_reader
+            ;;
+    esac
 }
 
 # === Migration functions ===
@@ -1010,8 +1125,6 @@ update_skills() {
     local target="$1"
     local skills_dir
     skills_dir=$(get_active_skills_dir "$target")
-    local inactive_skills_dir
-    inactive_skills_dir=$(get_inactive_skills_dir "$target")
     local existing_backup_root
     existing_backup_root=$(get_existing_backup_root "$target" || true)
 
@@ -1037,7 +1150,10 @@ update_skills() {
         print_info "共更新 $updated 个 skill"
     fi
 
-    remove_managed_skills_from_dir "$inactive_skills_dir"
+    local inactive_dir
+    while IFS= read -r inactive_dir; do
+        remove_managed_skills_from_dir "$inactive_dir"
+    done < <(get_inactive_skills_dirs "$target")
 
     if [[ -n "$existing_backup_root" ]]; then
         write_backup_root "$target" "$existing_backup_root"
@@ -1165,15 +1281,13 @@ update_install() {
 
     migrate_processed_file "$target"
 
-    local had_claude=false
-    if has_claude_code_support "$target"; then
-        had_claude=true
-    fi
+    local previous_mode
+    previous_mode=$(detect_current_mode "$target")
 
     select_client_support "$target" true
 
     local mode_changed=false
-    if [[ "$had_claude" != "$ENABLE_CLAUDE_CODE" ]]; then
+    if [[ "$previous_mode" != "$CLIENT_MODE" ]]; then
         mode_changed=true
     fi
 
@@ -1182,12 +1296,12 @@ update_install() {
     print_info "  (1) 更新 skills — 从本仓库同步最新 skill 文件"
     print_info "  (2) 更新 AGENTS.md — 从模板更新，保留您的用户偏好和自定义配置"
     print_info "  (3) 更新 .wiki_ignore — 从模板更新，保留用户自定义规则"
-    print_info "  (4) 同步客户端配置 — 根据选择创建或移除 Claude Code 托管文件"
+    print_info "  (4) 同步客户端配置 — 根据选择创建或移除客户端托管文件"
     print_info "  (5) 配置备份根目录"
     echo ""
 
     if [[ "$mode_changed" == "true" ]]; then
-        print_info "客户端模式已变化，自动同步 skills 目录"
+        print_info "客户端模式已变化（$previous_mode → $CLIENT_MODE），自动同步 skills 目录"
         update_skills "$target"
     elif prompt_user "Step (1/5): 是否更新 skills？（将覆盖现有 skill 文件）"; then
         update_skills "$target"
@@ -1211,7 +1325,7 @@ update_install() {
     fi
 
     print_info "Step (4/5): 同步客户端配置"
-    sync_claude_support_files
+    sync_client_support_files
 
     if prompt_user "Step (5/5): 是否修改备份根目录？"; then
         configure_backup "$target"
@@ -1238,16 +1352,28 @@ print_completion_message() {
     echo ""
     echo "2. 启动 OpenCode："
     echo "   opencode"
-    if [[ "$ENABLE_CLAUDE_CODE" == "true" ]]; then
-        echo "   或启动 Claude Code："
-        echo "   claude"
-    fi
+    case "$CLIENT_MODE" in
+        claude)
+            echo "   或启动 Claude Code："
+            echo "   claude"
+            ;;
+        codex)
+            echo "   或启动 Codex："
+            echo "   codex"
+            ;;
+    esac
     echo ""
     echo "3. 如果知识库已有文件，运行批量初始化："
-    echo "   /wiki-init"
+    echo "   OpenCode: /wiki-init"
+    case "$CLIENT_MODE" in
+        codex) echo "   Codex: \$wiki-init 或 /skills 选择 wiki-init" ;;
+    esac
     echo ""
     echo "4. 或者添加新文件后运行增量处理："
-    echo "   /wiki-ingest"
+    echo "   OpenCode: /wiki-ingest"
+    case "$CLIENT_MODE" in
+        codex) echo "   Codex: \$wiki-ingest 或 /skills 选择 wiki-ingest" ;;
+    esac
     echo ""
     echo "详细文档请参考 README.md"
 }
@@ -1300,12 +1426,18 @@ configure_vision_reader() {
     if [[ "$FORCE" == "true" ]]; then
         print_info "强制安装模式，跳过 vision-reader 交互配置"
         print_info "稍后可手动运行: ./config_vision_reader.sh \"$target\""
+        if [[ "$CLIENT_MODE" == "codex" ]]; then
+            print_info "Codex 版 vision-reader 已由安装器预生成（.codex/agents/vision-reader.toml）"
+        fi
         return 0
     fi
 
     echo ""
-    if ! prompt_user "是否配置 vision-reader subagent？（用于读取图片/幻灯片/PDF 等视觉内容）"; then
-        print_info "已跳过 vision-reader 配置"
+    if [[ "$CLIENT_MODE" == "codex" ]]; then
+        print_info "Codex 版 vision-reader 已由安装器预生成（.codex/agents/vision-reader.toml），不指定模型由 Codex 自动选择"
+    fi
+    if ! prompt_user "是否配置 OpenCode 版 vision-reader subagent？（用于在 OpenCode 中读取图片/幻灯片/PDF 等视觉内容）"; then
+        print_info "已跳过 OpenCode 版 vision-reader 配置"
         return 0
     fi
 
@@ -1316,7 +1448,7 @@ configure_vision_reader() {
     fi
 
     echo ""
-    print_info "正在配置 vision-reader..."
+    print_info "正在配置 OpenCode 版 vision-reader..."
     bash "$config_script" "$target" -f
 }
 
@@ -1342,7 +1474,7 @@ main() {
         create_output_directory
         create_skills_directory
         create_agents_file
-        sync_claude_support_files
+        sync_client_support_files
 
         configure_backup "$TARGET_DIR"
 
