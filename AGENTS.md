@@ -1,4 +1,4 @@
-# AGENTS.md — LLM Wikier 仓库
+# AGENTS.md — 知微（zhiwei）仓库
 
 ## 项目定位
 
@@ -66,12 +66,12 @@ compatibility: opencode, claude-code, codex
 9. 输出完成提示
 
 更新安装时必须支持三模式间双向切换：
-- OpenCode-only → +Claude：安装 `.claude/skills/wiki-*`，移除 LLM Wikier 管理的 `.opencode/skills/wiki-*`
-- OpenCode-only → +Codex：安装 `.agents/skills/wiki-*`，移除 LLM Wikier 管理的 `.opencode/skills/wiki-*`
-- +Claude → OpenCode-only：安装 `.opencode/skills/wiki-*`，移除 LLM Wikier 管理的 `.claude/skills/wiki-*`、托管 `CLAUDE.md` 区块和托管 `.claude/agents/vision-reader.md`
-- +Codex → OpenCode-only：安装 `.opencode/skills/wiki-*`，移除 LLM Wikier 管理的 `.agents/skills/wiki-*` 和托管 `.codex/agents/vision-reader.toml`
+- OpenCode-only → +Claude：安装 `.claude/skills/wiki-*`，移除知微管理的 `.opencode/skills/wiki-*`
+- OpenCode-only → +Codex：安装 `.agents/skills/wiki-*`，移除知微管理的 `.opencode/skills/wiki-*`
+- +Claude → OpenCode-only：安装 `.opencode/skills/wiki-*`，移除知微管理的 `.claude/skills/wiki-*`、托管 `CLAUDE.md` 区块和托管 `.claude/agents/vision-reader.md`
+- +Codex → OpenCode-only：安装 `.opencode/skills/wiki-*`，移除知微管理的 `.agents/skills/wiki-*` 和托管 `.codex/agents/vision-reader.toml`
 - +Claude ↔ +Codex：skills 在 `.claude/skills` 与 `.agents/skills` 间迁移，同时清理对应托管文件（`CLAUDE.md` 区块 + `.claude/agents/vision-reader.md` ↔ `.codex/agents/vision-reader.toml`）
-- 只删除 LLM Wikier 管理的 Claude Code / Codex 文件，不递归删除用户自定义 `.claude/`、`.codex/`、`.agents/` 内容
+- 只删除知微管理的 Claude Code / Codex 文件，不递归删除用户自定义 `.claude/`、`.codex/`、`.agents/` 内容
 
 **安装后的目标目录不包含本仓库的 `lib/`、`README.md`、`templates/`、`install.*`、`config_vision_reader.*`、`skills/` 源文件。**
 

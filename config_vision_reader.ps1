@@ -67,12 +67,12 @@ function Read-OpencodeConfigModel {
 }
 
 function Show-Help {
-    Write-Host "LLM Wikier vision-reader 配置脚本"
+    Write-Host "知微（zhiwei）vision-reader 配置脚本"
     Write-Host ""
     Write-Host "用法: .\config_vision_reader.ps1 <目标知识库路径> [选项]"
     Write-Host ""
     Write-Host "参数:"
-    Write-Host "  <目标知识库路径>    已安装 LLM Wikier 的知识库目录路径"
+    Write-Host "  <目标知识库路径>    已安装知微的知识库目录路径"
     Write-Host ""
     Write-Host "选项:"
     Write-Host "  -Force              更新模式跳过确认"
@@ -115,8 +115,8 @@ function Test-TargetDir {
 
     if (Get-Command Test-ValidKbDir -ErrorAction SilentlyContinue) {
         if (-not (Test-ValidKbDir $TargetDir)) {
-            Write-Error-Message "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
-            Write-Info-Message "请先运行 install.ps1 安装 LLM Wikier"
+            Write-Error-Message "目标目录不是有效的知微知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
+            Write-Info-Message "请先运行 install.ps1 安装知微"
             exit 1
         }
     } else {
@@ -124,8 +124,8 @@ function Test-TargetDir {
         $WikiDir = Join-Path $TargetDir ".wiki"
         $OldWikiDir = Join-Path $TargetDir "wiki"
         if (-not (Test-Path $AgentsFile) -or (-not (Test-Path $WikiDir) -and -not (Test-Path $OldWikiDir))) {
-            Write-Error-Message "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
-            Write-Info-Message "请先运行 install.ps1 安装 LLM Wikier"
+            Write-Error-Message "目标目录不是有效的知微知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
+            Write-Info-Message "请先运行 install.ps1 安装知微"
             exit 1
         }
     }

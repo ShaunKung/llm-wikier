@@ -43,12 +43,12 @@ function Write-Warning-Message {
 }
 
 function Show-Help {
-    Write-Host "LLM Wikier 安装脚本"
+    Write-Host "知微（zhiwei）安装脚本"
     Write-Host ""
     Write-Host "用法: .\install.ps1 <目标知识库路径> [选项]"
     Write-Host ""
     Write-Host "参数:"
-    Write-Host "  <目标知识库路径>    要安装 LLM Wikier 的知识库目录路径"
+    Write-Host "  <目标知识库路径>    要安装知微的知识库目录路径"
     Write-Host ""
     Write-Host "选项:"
     Write-Host "  -Force              强制覆盖（更新安装时自动确认所有步骤）"
@@ -410,7 +410,7 @@ function New-IndexFile {
     $Content = @'
 # Wiki 索引
 
-这是 LLM Wikier 自动生成的 wiki 索引页面。
+这是知微自动生成的 wiki 索引页面。
 
 ## 页面列表
 
@@ -474,7 +474,7 @@ function New-WikiIgnoreFile {
     }
     $DefaultRules += "output/"
 
-    $Content = "# LLM Wikier — 默认排除规则（由工具包管理，请勿修改此区域）`n"
+    $Content = "# 知微（zhiwei）— 默认排除规则（由工具包管理，请勿修改此区域）`n"
     $Content += ($DefaultRules -join "`n")
     $Content += "`n`n# ——— 用户自定义规则（添加在此区域下方） ———"
     
@@ -567,7 +567,7 @@ function New-AgentsFile {
         Write-Warning-Message "找不到 AGENTS.md 模板，创建默认文件"
         
         $Content = @'
-# AGENTS.md - LLM Wikier 配置文件
+# AGENTS.md - 知微（zhiwei）配置文件
 
 此文件定义知识库的结构、约定和工作流程。
 
@@ -575,7 +575,7 @@ function New-AgentsFile {
 
 ## 知识库概述
 
-这是一个由 LLM Wikier 管理的个人知识库。
+这是一个由知微（zhiwei）管理的个人知识库。
 
 ## Wiki 结构
 
@@ -705,7 +705,7 @@ $script:ClaudeManagedBegin
 
 ## Claude Code
 
-本知识库已启用 Claude Code 支持。LLM Wikier 的 Agent Skills 安装在 ``.claude/skills/``，OpenCode 也会通过兼容路径读取同一份 skills。
+本知识库已启用 Claude Code 支持。知微的 Agent Skills 安装在 ``.claude/skills/``，OpenCode 也会通过兼容路径读取同一份 skills。
 $script:ClaudeManagedEnd
 "@
 
@@ -733,10 +733,10 @@ function Remove-ClaudeManagedBlock {
     $Remaining = [regex]::Replace($Content, $Pattern, "")
     if ([string]::IsNullOrWhiteSpace($Remaining)) {
         Remove-Item $ClaudeFile -Force
-        Write-Success-Message "已移除 LLM Wikier 托管的 CLAUDE.md"
+        Write-Success-Message "已移除知微托管的 CLAUDE.md"
     } else {
         Set-Content -Path $ClaudeFile -Value $Remaining.TrimEnd() -Encoding UTF8
-        Write-Success-Message "已移除 CLAUDE.md 中的 LLM Wikier 托管区块"
+        Write-Success-Message "已移除 CLAUDE.md 中的知微托管区块"
     }
 }
 
@@ -798,7 +798,7 @@ function Remove-ClaudeVisionReader {
         if ((Test-Path $AgentDir) -and -not (Get-ChildItem $AgentDir -Force)) { Remove-Item $AgentDir -Force }
         $ClaudeDir = Join-Path $TargetDir ".claude"
         if ((Test-Path $ClaudeDir) -and -not (Get-ChildItem $ClaudeDir -Force)) { Remove-Item $ClaudeDir -Force }
-        Write-Success-Message "已移除 LLM Wikier 托管的 Claude Code vision-reader"
+        Write-Success-Message "已移除知微托管的 Claude Code vision-reader"
     } else {
         Write-Info-Message "保留用户自定义 Claude Code vision-reader"
     }
@@ -859,7 +859,7 @@ function Remove-CodexVisionReader {
         if ((Test-Path $AgentDir) -and -not (Get-ChildItem $AgentDir -Force)) { Remove-Item $AgentDir -Force }
         $CodexDir = Join-Path $TargetDir ".codex"
         if ((Test-Path $CodexDir) -and -not (Get-ChildItem $CodexDir -Force)) { Remove-Item $CodexDir -Force }
-        Write-Success-Message "已移除 LLM Wikier 托管的 Codex vision-reader"
+        Write-Success-Message "已移除知微托管的 Codex vision-reader"
     } else {
         Write-Info-Message "保留用户自定义 Codex vision-reader"
     }
@@ -1122,7 +1122,7 @@ function Update-AgentsFile {
     } else {
         Write-Warning-Message "找不到 AGENTS.md 模板，使用内置默认内容"
         $Content = @'
-# AGENTS.md - LLM Wikier 配置文件
+# AGENTS.md - 知微（zhiwei）配置文件
 
 此文件定义知识库的结构、约定和工作流程。
 
@@ -1130,7 +1130,7 @@ function Update-AgentsFile {
 
 ## 知识库概述
 
-这是一个由 LLM Wikier 管理的个人知识库。
+这是一个由知微（zhiwei）管理的个人知识库。
 
 ## Wiki 结构
 
@@ -1287,7 +1287,7 @@ function Update-Install {
 function Write-CompletionMessage {
     Write-Host ""
     Write-Host "======================================"
-    Write-Success-Message "LLM Wikier 安装完成！"
+    Write-Success-Message "知微（zhiwei）安装完成！"
     Write-Host "======================================"
     Write-Host ""
     Write-Host "下一步操作："
@@ -1416,7 +1416,7 @@ if (Test-UpdateInstall -TargetDir $TargetDir) {
 
     Select-ClientSupport -TargetDir $TargetDir -IsUpdate $false
 
-    Write-Info-Message "开始安装 LLM Wikier..."
+    Write-Info-Message "开始安装知微..."
 
     New-WikiDirectory
     New-IndexFile

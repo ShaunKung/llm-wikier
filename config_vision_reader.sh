@@ -80,12 +80,12 @@ find_opencode_cli_or_config() {
 }
 
 show_help() {
-    echo "LLM Wikier vision-reader 配置脚本"
+    echo "知微（zhiwei）vision-reader 配置脚本"
     echo ""
     echo "用法: $0 <目标知识库路径> [选项]"
     echo ""
     echo "参数:"
-    echo "  <目标知识库路径>    已安装 LLM Wikier 的知识库目录路径"
+    echo "  <目标知识库路径>    已安装知微的知识库目录路径"
     echo ""
     echo "选项:"
     echo "  -h, --help          显示此帮助信息"
@@ -135,8 +135,8 @@ validate_target_dir() {
     print_info "目标知识库路径: $TARGET_DIR"
 
     if ! is_valid_kb_dir "$TARGET_DIR"; then
-        print_error "目标目录不是有效的 LLM Wikier 知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
-        print_info "请先运行 install.sh 安装 LLM Wikier"
+        print_error "目标目录不是有效的知微知识库（缺少 AGENTS.md 或 .wiki/ 目录）"
+        print_info "请先运行 install.sh 安装知微"
         exit 1
     fi
 }

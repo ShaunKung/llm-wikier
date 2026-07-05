@@ -1,12 +1,12 @@
-# LLM Wikier
+# 知微 (zhiwei)
 
-一个以 OpenCode 为主的个人知识库工具包，用于构建和维护 LLM 驱动的 Wiki 知识库。安装时可选启用 Claude Code 或 Codex 支持（二者互斥），同一个个人知识库可以被 OpenCode 与 Claude Code 或 OpenCode 与 Codex 混合使用。
+知微（zhiwei）—— 见微知著，Agent Skills 驱动的个人知识库构建工具。安装时可选启用 Claude Code 或 Codex 支持（二者互斥），同一个个人知识库可以被 OpenCode 与 Claude Code 或 OpenCode 与 Codex 混合使用。
 
 该项目受 Andrej Karpathy 的 [llm-wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 启发而开发。
 
 ## 核心理念
 
-传统 RAG 系统在每次查询时都从原始文档重新检索和推理，知识无法累积。LLM Wikier 采用不同的方式：
+传统 RAG 系统在每次查询时都从原始文档重新检索和推理，知识无法累积。知微采用不同的方式：
 
 - **持久化 Wiki**：LLM 增量构建并维护一个结构化的 markdown wiki
 - **知识复利**：每次添加新源时，自动提取关键信息、更新相关页面、标注矛盾
@@ -44,8 +44,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/ShaunKung/llm-wikier.git
-cd llm-wikier
+git clone https://github.com/ShaunKung/zhiwei.git
+cd zhiwei
 
 # 添加执行权限
 chmod +x install.sh
@@ -60,8 +60,8 @@ chmod +x install.sh
 
 ```powershell
 # 克隆仓库
-git clone https://github.com/ShaunKung/llm-wikier.git
-cd llm-wikier
+git clone https://github.com/ShaunKung/zhiwei.git
+cd zhiwei
 
 # 安装到目标知识库
 .\install.ps1 "C:\path\to\your\knowledge-base"
@@ -86,10 +86,10 @@ Claude Code 和 Codex 互斥：知识库启用 Codex 时关闭 Claude Code 支�
 - 已支持 Claude Code 的知识库，默认继续支持 Claude Code
 - 已支持 Codex 的知识库，默认继续支持 Codex
 - 未支持其它客户端的知识库，默认保持 OpenCode-only
-- 任意两种模式间可双向切换；切换时 LLM Wikier 管理的 `wiki-*` skills 会从旧目录迁移到新目录
-- 切换到 OpenCode-only 时，移除 LLM Wikier 托管的 Claude Code 和 Codex 配置
+- 任意两种模式间可双向切换；切换时 知微管理的 `wiki-*` skills 会从旧目录迁移到新目录
+- 切换到 OpenCode-only 时，移除知微托管的 Claude Code 和 Codex 配置
 - Claude ↔ Codex 切换：skills 在 `.claude/skills` 与 `.agents/skills` 间迁移，同时清理对应托管文件（CLAUDE.md 区块 / `.claude/agents/vision-reader.md` ↔ `.codex/agents/vision-reader.toml`）
-- 安装器只移除 LLM Wikier 管理的 `.claude/`、`.codex/`、`.agents/` 中的托管文件，不会递归删除用户自定义内容
+- 安装器只移除知微管理的 `.claude/`、`.codex/`、`.agents/` 中的托管文件，不会递归删除用户自定义内容
 
 ## 安装后的目录结构
 
@@ -136,7 +136,7 @@ Claude Code 和 Codex 互斥：知识库启用 Codex 时关闭 Claude Code 支�
 │   ├── log.md
 │   └── .wiki-processed
 ├── .claude/
-│   ├── skills/                  # 混合模式下的唯一 LLM Wikier skills 目录
+│   ├── skills/                  # 混合模式下的唯一知微 skills 目录
 │   │   ├── wiki-init/SKILL.md
 │   │   ├── wiki-ingest/SKILL.md
 │   │   ├── wiki-query/SKILL.md
@@ -164,7 +164,7 @@ Claude Code 和 Codex 互斥：知识库启用 Codex 时关闭 Claude Code 支�
 │   ├── index.md
 │   ├── log.md
 │   └── .wiki-processed
-├── .agents/skills/              # 唯一 LLM Wikier skills 目录（OpenCode 与 Codex 共享）
+├── .agents/skills/              # 唯一知微 skills 目录（OpenCode 与 Codex 共享）
 │   ├── wiki-init/SKILL.md
 │   ├── wiki-ingest/SKILL.md
 │   ├── wiki-query/SKILL.md
@@ -358,7 +358,7 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
 
 ### 视觉内容读取
 
-对于需要视觉能力的文件类型（图片、办公文档、网页），LLM Wikier 支持通过 `vision-reader` subagent 处理视觉内容。纯图片文件委托 subagent 读取描述，办公文档和网页采用两段式处理（Read 取文本 + vision-reader 取视觉元素）。
+对于需要视觉能力的文件类型（图片、办公文档、网页），知微支持通过 `vision-reader` subagent 处理视觉内容。纯图片文件委托 subagent 读取描述，办公文档和网页采用两段式处理（Read 取文本 + vision-reader 取视觉元素）。
 
 如未配置，Agent 跳过视觉处理，仅处理文本内容。
 

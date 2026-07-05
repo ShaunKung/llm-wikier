@@ -35,12 +35,12 @@ print_warning() {
 }
 
 show_help() {
-    echo "LLM Wikier 安装脚本"
+    echo "知微（zhiwei）安装脚本"
     echo ""
     echo "用法: $0 <目标知识库路径> [选项]"
     echo ""
     echo "参数:"
-    echo "  <目标知识库路径>    要安装 LLM Wikier 的知识库目录路径"
+    echo "  <目标知识库路径>    要安装知微的知识库目录路径"
     echo ""
     echo "选项:"
     echo "  -h, --help          显示此帮助信息"
@@ -457,7 +457,7 @@ create_index_file() {
     cat > "$index_file" << 'EOF'
 # Wiki 索引
 
-这是 LLM Wikier 自动生成的 wiki 索引页面。
+这是知微自动生成的 wiki 索引页面。
 
 ## 页面列表
 
@@ -506,7 +506,7 @@ create_wiki_ignore_file() {
     local ignore_file="$TARGET_DIR/.wiki_ignore"
 
     cat > "$ignore_file" << EOF
-# LLM Wikier — 默认排除规则（由工具包管理，请勿修改此区域）
+# 知微（zhiwei）— 默认排除规则（由工具包管理，请勿修改此区域）
 .opencode/
 $(if [[ "$CLIENT_MODE" == "claude" ]]; then echo ".claude/"; fi)
 $(if [[ "$CLIENT_MODE" == "codex" ]]; then echo ".agents/"; echo ".codex/"; fi)
@@ -570,7 +570,7 @@ create_agents_file() {
     else
         print_warning "找不到 AGENTS.md 模板，创建默认文件"
         cat > "$agents_file" << 'EOF'
-# AGENTS.md - LLM Wikier 配置文件
+# AGENTS.md - 知微（zhiwei）配置文件
 
 此文件定义知识库的结构、约定和工作流程。
 
@@ -578,7 +578,7 @@ create_agents_file() {
 
 ## 知识库概述
 
-这是一个由 LLM Wikier 管理的个人知识库。
+这是一个由知微（zhiwei）管理的个人知识库。
 
 ## Wiki 结构
 
@@ -711,7 +711,7 @@ $CLAUDE_MANAGED_BEGIN
 
 ## Claude Code
 
-本知识库已启用 Claude Code 支持。LLM Wikier 的 Agent Skills 安装在 \`.claude/skills/\`，OpenCode 也会通过兼容路径读取同一份 skills。
+本知识库已启用 Claude Code 支持。知微的 Agent Skills 安装在 \`.claude/skills/\`，OpenCode 也会通过兼容路径读取同一份 skills。
 $CLAUDE_MANAGED_END
 EOF
 
@@ -740,10 +740,10 @@ remove_claude_file_managed_block() {
     sed "/$CLAUDE_MANAGED_BEGIN/,/$CLAUDE_MANAGED_END/d" "$claude_file" > "$tmp"
     if grep -q '[^[:space:]]' "$tmp"; then
         mv "$tmp" "$claude_file"
-        print_success "已移除 CLAUDE.md 中的 LLM Wikier 托管区块"
+        print_success "已移除 CLAUDE.md 中的知微托管区块"
     else
         rm -f "$tmp" "$claude_file"
-        print_success "已移除 LLM Wikier 托管的 CLAUDE.md"
+        print_success "已移除知微托管的 CLAUDE.md"
     fi
 }
 
@@ -795,7 +795,7 @@ remove_claude_vision_reader() {
         rm -f "$agent_file"
         rmdir "$TARGET_DIR/.claude/agents" 2>/dev/null || true
         rmdir "$TARGET_DIR/.claude" 2>/dev/null || true
-        print_success "已移除 LLM Wikier 托管的 Claude Code vision-reader"
+        print_success "已移除知微托管的 Claude Code vision-reader"
     else
         print_info "保留用户自定义 Claude Code vision-reader"
     fi
@@ -846,7 +846,7 @@ remove_codex_vision_reader() {
         rm -f "$agent_file"
         rmdir "$TARGET_DIR/.codex/agents" 2>/dev/null || true
         rmdir "$TARGET_DIR/.codex" 2>/dev/null || true
-        print_success "已移除 LLM Wikier 托管的 Codex vision-reader"
+        print_success "已移除知微托管的 Codex vision-reader"
     else
         print_info "保留用户自定义 Codex vision-reader"
     fi
@@ -1179,7 +1179,7 @@ update_agents_file() {
         local default_template
         default_template=$(mktemp) || true
         cat > "$default_template" << 'EOF'
-# AGENTS.md - LLM Wikier 配置文件
+# AGENTS.md - 知微（zhiwei）配置文件
 
 此文件定义知识库的结构、约定和工作流程。
 
@@ -1187,7 +1187,7 @@ update_agents_file() {
 
 ## 知识库概述
 
-这是一个由 LLM Wikier 管理的个人知识库。
+这是一个由知微（zhiwei）管理的个人知识库。
 
 ## Wiki 结构
 
@@ -1346,7 +1346,7 @@ update_install() {
 print_completion_message() {
     echo ""
     echo "======================================"
-    print_success "LLM Wikier 安装完成！"
+    print_success "知微（zhiwei）安装完成！"
     echo "======================================"
     echo ""
     echo "下一步操作："
@@ -1468,7 +1468,7 @@ main() {
 
         select_client_support "$TARGET_DIR" false
 
-        print_info "开始安装 LLM Wikier..."
+        print_info "开始安装知微..."
 
         create_wiki_directory
         create_index_file
