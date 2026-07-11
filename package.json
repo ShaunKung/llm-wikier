@@ -1,0 +1,25 @@
+{
+  "name": "@shaunkung/zhiwei",
+  "version": "1.0.0",
+  "description": "知微（zhiwei）—— Agent Skills 驱动的个人知识库构建工具",
+  "keywords": ["zhiwei", "wiki", "knowledge-base", "opencode", "agent-skills"],
+  "homepage": "https://github.com/ShaunKung/zhiwei",
+  "repository": { "type": "git", "url": "https://github.com/ShaunKung/zhiwei" },
+  "license": "GPL-3.0",
+  "author": "ShaunKung",
+  "type": "module",
+  "bin": {
+    "zhiwei": "./bin/zhiwei.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    "templates"
+  ],
+  "engines": { "node": ">=18.0.0" },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^12.1.0"
+  }
+}

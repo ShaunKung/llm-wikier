@@ -40,7 +40,33 @@
 - 如需混合使用：[Claude Code](https://docs.anthropic.com/en/docs/claude-code) 或 [OpenAI Codex CLI](https://developers.openai.com/codex) 已安装
 - 已有一个知识库文件夹（可包含多层子目录和现有文件）
 
-### Mac / Linux
+### 推荐方式：npm CLI（跨平台）
+
+```bash
+# 从 npm 全局安装知微 CLI
+npm install -g @shaunkung/zhiwei
+
+# 安装到目标知识库
+zhiwei init /path/to/your/knowledge-base
+```
+
+安装过程中会询问是否需要支持除 OpenCode 之外的其它客户端。当前可选 Claude Code 或 Codex（二者互斥），默认不启用，保持 OpenCode-only 模式。
+
+#### 强制覆盖 / 更新安装
+
+```bash
+# 强制模式：自动确认所有步骤（适合更新安装）
+zhiwei init /path/to/your/knowledge-base --force
+
+# 指定客户端模式（跳过交互选择）
+zhiwei init /path/to/your/knowledge-base --mode codex
+# 或
+zhiwei init /path/to/your/knowledge-base -m claude
+```
+
+### 备用方式：Shell / PowerShell 脚本（无需 npm）
+
+#### Mac / Linux
 
 ```bash
 # 克隆仓库
@@ -54,9 +80,7 @@ chmod +x install.sh
 ./install.sh /path/to/your/knowledge-base
 ```
 
-安装过程中会询问是否需要支持除 OpenCode 之外的其它客户端。当前可选 Claude Code 或 Codex（二者互斥），默认不启用，保持 OpenCode-only 模式。
-
-### Windows (PowerShell)
+#### Windows (PowerShell)
 
 ```powershell
 # 克隆仓库
@@ -266,6 +290,15 @@ Agent 会在所有对话中自动感知你提供的新知识——新事实、�
 - HTML/Markdown 中的嵌入图片
 
 ### 配置
+
+推荐方式（npm CLI）：
+
+```bash
+# 跨平台
+zhiwei config-vision-reader /path/to/your/knowledge-base
+```
+
+备用方式（Shell / PowerShell 脚本）：
 
 ```bash
 # Mac/Linux

@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-这是一个以 OpenCode 为主的 Agent Skills 工具包仓库，提供安装脚本将技能安装到任意**已有的**知识库目录。安装器可选启用 Claude Code 或 Codex 支持（二者互斥），同一个个人知识库可以被 OpenCode 与 Claude Code 或 OpenCode 与 Codex 混合使用。
+这是一个以 OpenCode 为主的 Agent Skills 工具包仓库，提供 npm CLI 工具 `zhiwei` 将技能安装到任意**已有的**知识库目录。安装器可选启用 Claude Code 或 Codex 支持（二者互斥），同一个个人知识库可以被 OpenCode 与 Claude Code 或 OpenCode 与 Codex 混合使用。
 不是知识库本身——本仓库的 `templates/AGENTS.md.tmpl` 是知识库的 schema 模板。
 
 ## 文件约定
@@ -28,12 +28,18 @@ skills/                     ← 8 个 Agent Skills 定义（OpenCode-only 安装
   wiki-capture/SKILL.md     ← 对话知识抓取（自动感知 + 冲突裁决）
   wiki-backup/SKILL.md      ← 自动/手动备份与恢复
 templates/AGENTS.md.tmpl    ← 安装到目标知识库的 schema 模板
-lib/common.sh               ← Mac/Linux 安装脚本的共享函数
-lib/common.ps1              ← Windows 安装脚本的共享函数
-install.sh                  ← Mac/Linux 安装器
-install.ps1                 ← Windows PowerShell 安装器
-config_vision_reader.sh     ← Mac/Linux vision-reader subagent 配置器
-config_vision_reader.ps1    ← Windows vision-reader subagent 配置器
+lib/common.sh               ← Mac/Linux 安装脚本的共享函数（遗留）
+lib/common.ps1              ← Windows 安装脚本的共享函数（遗留）
+install.sh                  ← Mac/Linux 安装器（遗留，推荐使用 npm CLI）
+install.ps1                 ← Windows PowerShell 安装器（遗留，推荐使用 npm CLI）
+config_vision_reader.sh     ← Mac/Linux vision-reader subagent 配置器（遗留）
+config_vision_reader.ps1    ← Windows vision-reader subagent 配置器（遗留）
+bin/zhiwei.js               ← npm CLI 入口（主推荐方式）
+src/                        ← JavaScript CLI 源码
+  cli.js                    ← Commander CLI 定义
+  install.js                ← 安装/更新逻辑
+  config-vision-reader.js   ← vision-reader 配置
+  utils.js                  ← 共享工具函数
 ```
 
 ## SKILL.md 格式
@@ -88,18 +94,25 @@ compatibility: opencode, claude-code, codex
 6. 生成 `.opencode/agents/vision-reader.md`（YAML frontmatter + 视觉读取 system prompt）
 7. 输出完成提示（含 .gitignore 建议）
 
+注：npm CLI 命令 `zhiwei config-vision-reader` 实现了与 config_vision_reader.sh/ps1 相同的逻辑，推荐优先使用。
+
 ## 安装脚本内部生成的 AGENTS.md 默认内容
 
 install.sh/ps1 内置一份硬编码的默认 AGENTS.md（当 `templates/AGENTS.md.tmpl` 不可用时使用）。
+JS 安装器（`src/install.js`）中 `getDefaultAgentsContent()` 函数也维护了同一份默认内容。
 修改支持的文件格式列表时，需同步更新三处：
 - `README.md`
 - `install.sh` 默认 AGENTS.md 内容
 - `install.ps1` 默认 AGENTS.md 内容
+- `src/install.js` 中 `getDefaultAgentsContent()` 函数
+- `templates/AGENTS.md.tmpl`
+- (可选) `lib/common.sh` / `lib/common.ps1`
 
 修改自动备份章节时需同步更新：
 - `templates/AGENTS.md.tmpl`
 - `install.sh` 默认 AGENTS.md 内容
 - `install.ps1` 默认 AGENTS.md 内容
+- `src/install.js` 中 `getDefaultAgentsContent()` 函数
 - `skills/wiki-backup/SKILL.md`
 
 `lib/common.sh` 中的 `get_text_extensions` / `get_image_extensions` / `get_office_extensions` 及对应的 `lib/common.ps1` 函数也需同步更新。
