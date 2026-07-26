@@ -59,8 +59,17 @@ export function removeManagedSkills(dstDir, skills) {
       info(`已移除旧 skill: ${dir}`);
     }
   }
-  try { rmSync(dstDir, { recursive: true, force: true }); } catch {}
-  try { rmSync(resolve(dstDir, '..'), { recursive: true, force: true }); } catch {}
+  try {
+    const remaining = readdirSync(dstDir);
+    if (remaining.length === 0) {
+      rmSync(dstDir, { recursive: true, force: true });
+      const parent = resolve(dstDir, '..');
+      const parentRemaining = readdirSync(parent);
+      if (parentRemaining.length === 0) {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  } catch {}
 }
 
 export function getActiveSkillsDir(targetDir, mode) {
