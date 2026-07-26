@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, rmSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, rmSync, readdirSync } from 'node:fs';
 import chalk from 'chalk';
 
 const __filename = fileURLToPath(import.meta.url);

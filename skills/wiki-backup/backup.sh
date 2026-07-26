@@ -83,12 +83,12 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "备份根目录: $BACKUP_ROOT"
     echo "知识库目录: $KB_DIR"
     echo "输出文件: $ARCHIVE_PATH"
-    echo \"包含内容:\"
-    echo \"  - .wiki/\"
-    echo \"  - AGENTS.md\"
-    echo \"  - CLAUDE.md（如存在）\"
-    echo \"  - .wiki_ignore\"
-    echo \"  - $SKILLS_REL/\"
+    echo "包含内容:"
+    echo "  - .wiki/"
+    echo "  - AGENTS.md"
+    echo "  - CLAUDE.md（如存在）"
+    echo "  - .wiki_ignore"
+    echo "  - $SKILLS_REL/"
     exit 0
 fi
 
