@@ -61,6 +61,10 @@ if ($Mode -eq "auto") {
 # === Ensure target directory exists ===
 New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
 
+# === Compute active skills directory relative to KB root ===
+$SkillsParent = Split-Path $ScriptDir -Parent
+$SkillsRel = $SkillsParent.Substring($KbDir.Length).TrimStart('\')
+
 # === Build timestamp and filename ===
 $Timestamp = (Get-Date).ToString("yyyy-MM-dd_HH-mm")
 $ArchiveName = "${Timestamp}_${KbFolderName}.zip"
@@ -76,6 +80,7 @@ if ($DryRun) {
     Write-Host "  - AGENTS.md"
     Write-Host "  - CLAUDE.md（如存在）"
     Write-Host "  - .wiki_ignore"
+    Write-Host "  - $SkillsRel/"
     exit 0
 }
 
@@ -85,6 +90,7 @@ if (Test-Path (Join-Path $KbDir ".wiki")) { $Targets += ".wiki" }
 if (Test-Path (Join-Path $KbDir "AGENTS.md")) { $Targets += "AGENTS.md" }
 if (Test-Path (Join-Path $KbDir "CLAUDE.md")) { $Targets += "CLAUDE.md" }
 if (Test-Path (Join-Path $KbDir ".wiki_ignore")) { $Targets += ".wiki_ignore" }
+if (Test-Path (Join-Path $KbDir $SkillsRel)) { $Targets += $SkillsRel }
 
 if ($Targets.Count -eq 0) {
     Write-Host "[错误] 没有可备份的内容" -ForegroundColor Red
