@@ -70,6 +70,9 @@ fi
 # === Ensure target directory exists ===
 mkdir -p "$BACKUP_DIR"
 
+# === Compute active skills directory relative to KB root ===
+SKILLS_REL="$(dirname "${SCRIPT_DIR#$KB_DIR/}")"
+
 # === Build timestamp and filename ===
 TIMESTAMP="$(date +"%Y-%m-%d_%H-%M")"
 ARCHIVE_NAME="${TIMESTAMP}_${KB_FOLDER_NAME}.tar.gz"
@@ -80,11 +83,12 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "备份根目录: $BACKUP_ROOT"
     echo "知识库目录: $KB_DIR"
     echo "输出文件: $ARCHIVE_PATH"
-    echo "包含内容:"
-    echo "  - .wiki/"
-    echo "  - AGENTS.md"
-    echo "  - CLAUDE.md（如存在）"
-    echo "  - .wiki_ignore"
+    echo \"包含内容:\"
+    echo \"  - .wiki/\"
+    echo \"  - AGENTS.md\"
+    echo \"  - CLAUDE.md（如存在）\"
+    echo \"  - .wiki_ignore\"
+    echo \"  - $SKILLS_REL/\"
     exit 0
 fi
 
@@ -93,7 +97,7 @@ cd "$KB_DIR"
 
 # Collect existing backup targets
 TARGETS=""
-for item in .wiki AGENTS.md CLAUDE.md .wiki_ignore; do
+for item in .wiki AGENTS.md CLAUDE.md .wiki_ignore "$SKILLS_REL"; do
     if [[ -e "$item" ]]; then
         TARGETS="$TARGETS $item"
     fi
